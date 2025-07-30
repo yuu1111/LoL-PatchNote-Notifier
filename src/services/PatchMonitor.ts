@@ -5,7 +5,6 @@
 import { lastStatusSchema } from '../config/schemas.js';
 import { STORAGE_CONFIG } from '../core/constants.js';
 import {
-  NotificationError,
   StorageError,
   AppError,
 } from '../core/errors.js';
@@ -20,6 +19,7 @@ import { httpClient } from '../utils/httpClient.js';
 
 import { PatchScraper } from './PatchScraper.js';
 import { DiscordNotifier } from './DiscordNotifier.js';
+import { PatchCacheService } from './PatchCacheService.js';
 
 const logger = createContextLogger({ component: 'patchMonitor' });
 
@@ -29,6 +29,7 @@ const logger = createContextLogger({ component: 'patchMonitor' });
 export class PatchMonitor {
   private readonly patchScraper: PatchScraper;
   private readonly discordNotifier: DiscordNotifier;
+  private readonly patchCache: PatchCacheService;
   private readonly storage: IStorage;
   private isRunning = false;
   private lastStatus: LastStatus | null = null;
@@ -36,6 +37,7 @@ export class PatchMonitor {
   constructor() {
     this.patchScraper = new PatchScraper();
     this.discordNotifier = new DiscordNotifier();
+    this.patchCache = new PatchCacheService();
     this.storage = createStorage();
 
     logger.info('Patch monitor initialized');
@@ -50,15 +52,24 @@ export class PatchMonitor {
     try {
       contextLogger.info('Initializing patch monitor');
 
+      // Initialize patch cache service
+      contextLogger.info('Initializing patch cache service');
+      await this.patchCache.initialize();
+      contextLogger.info('Patch cache service initialization completed');
+
       // Load last status from storage
+      contextLogger.info('Loading last status from storage');
       await this.loadLastStatus();
+      contextLogger.info('Last status loading completed');
 
-      // Validate webhook connectivity
-      await this.validateWebhookConnectivity();
+      // Skip webhook connectivity test during initialization to avoid blocking
+      contextLogger.info('Webhook connectivity test skipped during initialization');
 
+      const cacheStats = this.patchCache.getCacheStats();
       contextLogger.info('Patch monitor initialization completed', {
         hasLastStatus: !!this.lastStatus,
         lastNotifiedUrl: this.lastStatus?.lastNotifiedUrl || 'none',
+        cachedPatches: cacheStats.totalPatches,
       });
 
     } catch (error) {
@@ -92,8 +103,8 @@ export class PatchMonitor {
     try {
       contextLogger.info('Starting patch check');
 
-      // Scrape the latest patch information
-      const patchInfo = await this.patchScraper.getLatestPatchInfo();
+      // Scrape the latest patch information with detailed content
+      const patchInfo = await this.patchScraper.getDetailedPatchInfo();
 
       if (!patchInfo) {
         contextLogger.warn('No patch information found');
@@ -107,6 +118,18 @@ export class PatchMonitor {
         title: patchInfo.title,
         url: patchInfo.url,
       });
+
+      // Cache the retrieved patch
+      try {
+        await this.patchCache.addPatch(patchInfo);
+        contextLogger.debug('Patch added to cache', {
+          title: patchInfo.title,
+          totalCached: this.patchCache.getCacheStats().totalPatches,
+        });
+      } catch (error) {
+        // Log cache error but don't fail the entire operation
+        logError(error, 'Failed to cache patch info', { patchInfo });
+      }
 
       // Check if this is a new patch
       const isNewPatch = this.isNewPatch(patchInfo);
@@ -171,13 +194,23 @@ export class PatchMonitor {
     try {
       contextLogger.info('Force notification requested');
 
-      const patchInfo = await this.patchScraper.getLatestPatchInfo();
+      const patchInfo = await this.patchScraper.getDetailedPatchInfo();
 
       if (!patchInfo) {
         return {
           success: false,
           error: 'No patch information found',
         };
+      }
+
+      // Cache the patch
+      try {
+        await this.patchCache.addPatch(patchInfo);
+        contextLogger.debug('Patch added to cache during force notification', {
+          title: patchInfo.title,
+        });
+      } catch (error) {
+        logError(error, 'Failed to cache patch info during force notification', { patchInfo });
       }
 
       await this.discordNotifier.sendPatchNotification(patchInfo);
@@ -209,6 +242,7 @@ export class PatchMonitor {
     isRunning: boolean;
     lastStatus: LastStatus | null;
     scraperCache: ReturnType<PatchScraper['getCacheStatus']>;
+    patchCache: ReturnType<PatchCacheService['getCacheStats']>;
     circuitBreakerState: ReturnType<typeof httpClient.getCircuitBreakerState>;
     webhookInfo: ReturnType<DiscordNotifier['getWebhookInfo']>;
     metrics: ReturnType<typeof metrics.getMetrics>;
@@ -217,6 +251,7 @@ export class PatchMonitor {
       isRunning: this.isRunning,
       lastStatus: this.lastStatus,
       scraperCache: this.patchScraper.getCacheStatus(),
+      patchCache: this.patchCache.getCacheStats(),
       circuitBreakerState: httpClient.getCircuitBreakerState(),
       webhookInfo: this.discordNotifier.getWebhookInfo(),
       metrics: metrics.getMetrics(),
@@ -313,8 +348,11 @@ export class PatchMonitor {
     try {
       contextLogger.info('Starting cleanup');
 
-      // Clear caches
+      // Clear scraper cache
       this.patchScraper.clearCache();
+
+      // Clean up patch cache service
+      await this.patchCache.cleanup();
 
       // Log final metrics
       metrics.logMetrics();
@@ -404,34 +442,45 @@ export class PatchMonitor {
   }
 
   /**
-   * Validate webhook connectivity during initialization
+   * Check if this is the first run (no previous status or empty URL)
    */
-  private async validateWebhookConnectivity(): Promise<void> {
-    const contextLogger = logger.child({ operation: 'validateWebhookConnectivity' });
-
-    try {
-      contextLogger.info('Validating Discord webhook connectivity');
-
-      const connectivityTest = await this.discordNotifier.testWebhookConnectivity();
-
-      if (!connectivityTest.isConnected) {
-        throw new NotificationError('Discord webhook connectivity test failed', {
-          error: connectivityTest.error,
-        });
-      }
-
-      contextLogger.info('Discord webhook connectivity validated successfully', {
-        responseTime: connectivityTest.responseTime,
-      });
-
-    } catch (error) {
-      if (error instanceof NotificationError) {
-        throw error;
-      }
-
-      throw new NotificationError('Webhook connectivity validation failed', {
-        originalError: error,
-      });
-    }
+  isFirstRun(): boolean {
+    return !this.lastStatus || this.lastStatus.lastNotifiedUrl === '';
   }
+
+  /**
+   * Get all cached patches
+   */
+  getCachedPatches(): ReturnType<PatchCacheService['getAllPatches']> {
+    return this.patchCache.getAllPatches();
+  }
+
+  /**
+   * Get cached patches sorted by discovery date (newest first)
+   */
+  getCachedPatchesSorted(): ReturnType<PatchCacheService['getPatchesSorted']> {
+    return this.patchCache.getPatchesSorted();
+  }
+
+  /**
+   * Get a specific cached patch by URL
+   */
+  async getCachedPatch(url: string, includeContent: boolean = false): Promise<ReturnType<PatchCacheService['getPatch']>> {
+    return await this.patchCache.getPatch(url, includeContent);
+  }
+
+  /**
+   * Get a specific cached patch by URL (synchronous, index only)
+   */
+  getCachedPatchSync(url: string): ReturnType<PatchCacheService['getPatchSync']> {
+    return this.patchCache.getPatchSync(url);
+  }
+
+  /**
+   * Get the latest cached patch
+   */
+  getLatestCachedPatch(): ReturnType<PatchCacheService['getLatestPatch']> {
+    return this.patchCache.getLatestPatch();
+  }
+
 }

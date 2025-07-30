@@ -2,6 +2,7 @@
  * Main application entry point with interval scheduling and graceful shutdown
  */
 
+import { pathToFileURL } from 'url';
 import { config } from './config/index.js';
 import { 
   logStartup, 
@@ -34,22 +35,53 @@ class Application {
       logStartup();
 
       // Initialize patch monitor
+      logger.info('Initializing patch monitor...');
       await this.patchMonitor.initialize();
+      logger.info('Patch monitor initialization completed');
 
-      // Perform initial check
-      logger.info('Performing initial patch check');
-      const initialResult = await this.patchMonitor.checkAndNotify();
+      // Perform initial check with timeout protection
+      const isFirstRun = this.patchMonitor.isFirstRun();
+      logger.info(isFirstRun ? 
+        '🚀 First run detected - fetching latest patch information' : 
+        '🔄 Performing startup patch check'
+      );
       
-      if (initialResult.success) {
-        if (initialResult.newPatchFound) {
-          logger.info('Initial check found new patch', {
-            patch: initialResult.patchInfo?.title,
-          });
+      try {
+        const initialCheckPromise = this.patchMonitor.checkAndNotify();
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Initial check timeout (30s)')), 30000);
+        });
+        
+        const initialResult = await Promise.race([initialCheckPromise, timeoutPromise]);
+        
+        if (initialResult.success) {
+          if (isFirstRun) {
+            logger.info('✅ Latest patch information retrieved successfully', {
+              patch: initialResult.patchInfo?.title || 'No patches found',
+              url: initialResult.patchInfo?.url || 'N/A',
+              note: 'System is now ready to monitor for new patches'
+            });
+          } else if (initialResult.newPatchFound) {
+            logger.info('🎉 New patch detected during startup!', {
+              patch: initialResult.patchInfo?.title,
+              url: initialResult.patchInfo?.url,
+            });
+          } else {
+            logger.info('✅ System is up to date - no new patches', {
+              lastKnownPatch: initialResult.patchInfo?.title || 'No previous patch data',
+            });
+          }
         } else {
-          logger.info('Initial check completed, no new patches');
+          logger.warn('⚠️ Initial check failed - will retry on next scheduled run', { 
+            error: initialResult.error 
+          });
         }
-      } else {
-        logger.warn('Initial check failed', { error: initialResult.error });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.warn('⚠️ Initial check failed or timed out - continuing with startup', { 
+          error: errorMessage,
+          note: 'This is non-blocking - regular checks will continue'
+        });
       }
 
       // Start interval scheduler
@@ -255,11 +287,19 @@ const app = new Application();
 export { Application };
 
 // Start application if this file is run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  app.start().catch((error) => {
-    logError(error, 'Application startup failed');
-    process.exit(1);
-  });
+// Fix for Windows path handling in ESM
+const currentModuleUrl = import.meta.url;
+const scriptPath = process.argv[1];
+
+if (scriptPath) {
+  const mainModuleUrl = pathToFileURL(scriptPath).href;
+  
+  if (currentModuleUrl === mainModuleUrl) {
+    app.start().catch((error) => {
+      logError(error, 'Application startup failed');
+      process.exit(1);
+    });
+  }
 }
 
 // Export app instance for testing

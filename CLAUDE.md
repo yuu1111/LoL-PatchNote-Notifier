@@ -104,6 +104,10 @@ The specification outlines three deployment strategies:
 
 For serverless deployments, state persistence needs to be moved from JSON files to cloud storage (S3, Cloud Storage, Redis, DynamoDB).
 
+## Communication Guidelines
+
+**Language Preference**: All conversations with Claude Code should be conducted in Japanese. The project owner prefers Japanese communication for development discussions, feature requests, and technical support.
+
 ## Development Guidelines
 
 ### Semantic Versioning (SemVer)

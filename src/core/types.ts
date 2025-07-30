@@ -11,6 +11,19 @@ export interface PatchInfo {
   discoveredAt?: string | undefined;
 }
 
+export interface DetailedPatchInfo extends PatchInfo {
+  /** Full content of the patch notes (HTML or markdown) */
+  content?: string | undefined;
+  /** Summary/excerpt of the patch notes */
+  summary?: string | undefined;
+  /** Patch version extracted from title or URL */
+  version?: string | undefined;
+  /** Content size in bytes */
+  contentSize?: number | undefined;
+  /** Content hash for deduplication */
+  contentHash?: string | undefined;
+}
+
 export interface LastStatus {
   /** URL of the last patch that was successfully notified */
   lastNotifiedUrl: string;
@@ -131,6 +144,44 @@ export interface ApplicationMetrics {
   lastSuccessfulOperation?: string;
   /** Last error timestamp */
   lastError?: string;
+}
+
+export interface CachedPatchInfo extends DetailedPatchInfo {
+  /** Timestamp when this patch was cached */
+  cachedAt: string;
+  /** File path to the individual patch JSON file */
+  filePath?: string | undefined;
+}
+
+export interface PatchCache {
+  /** Map of patch URLs to cached patch information */
+  patches: Record<string, CachedPatchInfo>;
+  /** Timestamp when the cache was last updated */
+  lastUpdated: string;
+  /** Total number of cached patches */
+  totalPatches: number;
+  /** Cache metadata for management */
+  metadata: {
+    /** Maximum cache size (number of patches) */
+    maxSize: number;
+    /** Cache TTL in milliseconds */
+    ttlMs: number;
+    /** Total cache size in bytes */
+    totalSizeBytes: number;
+  };
+}
+
+export interface CacheManagementResult {
+  /** Whether the cache operation was successful */
+  success: boolean;
+  /** Number of entries processed */
+  entriesProcessed: number;
+  /** Number of entries added/updated */
+  entriesModified: number;
+  /** Number of entries removed */
+  entriesRemoved: number;
+  /** Error message if operation failed */
+  error?: string;
 }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';

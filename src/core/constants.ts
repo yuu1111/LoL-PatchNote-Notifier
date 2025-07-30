@@ -131,12 +131,25 @@ export const STORAGE_CONFIG = {
   METRICS_KEY: 'application_metrics',
   /** Storage key for circuit breaker state */
   CIRCUIT_BREAKER_KEY: 'circuit_breaker_state',
+  /** Storage key for patch cache */
+  PATCH_CACHE_KEY: 'patch_cache',
   /** Default data directory */
   DEFAULT_DATA_DIR: './data',
+  /** Directory for individual patch files */
+  PATCHES_DIR: './data/patches',
   /** File encoding */
   FILE_ENCODING: 'utf-8',
   /** JSON indentation */
   JSON_INDENT: 2,
+} as const;
+
+export const CACHE_CONFIG = {
+  /** Default maximum number of cached patches (no automatic deletion) */
+  DEFAULT_MAX_SIZE: 10000,
+  /** Default TTL in milliseconds (no automatic expiration) */
+  DEFAULT_TTL_MS: 31536000000, // 1 year
+  /** Cache statistics update interval */
+  STATS_UPDATE_INTERVAL_MS: 60000, // 1 minute
 } as const;
 
 export const LOGGING_CONFIG = {

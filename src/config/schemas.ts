@@ -121,13 +121,40 @@ export const patchInfoSchema = z.object({
 });
 
 /**
+ * Detailed patch information schema for validation
+ */
+export const detailedPatchInfoSchema = patchInfoSchema.extend({
+  content: z
+    .string()
+    .max(10000000, 'Content too large') // 10MB limit
+    .optional(),
+  summary: z
+    .string()
+    .max(5000, 'Summary too long')
+    .optional(),
+  version: z
+    .string()
+    .max(50, 'Version string too long')
+    .optional(),
+  contentSize: z
+    .number()
+    .int()
+    .min(0)
+    .optional(),
+  contentHash: z
+    .string()
+    .min(1)
+    .optional(),
+});
+
+/**
  * Last status schema for validation
  */
 export const lastStatusSchema = z.object({
-  lastNotifiedUrl: z
-    .string()
-    .url('Invalid last notified URL')
-    .max(VALIDATION_CONFIG.MAX_LENGTHS.URL, 'URL too long'),
+  lastNotifiedUrl: z.union([
+    z.string().length(0), // Empty string
+    z.string().url('Invalid last notified URL').max(VALIDATION_CONFIG.MAX_LENGTHS.URL, 'URL too long'),
+  ]),
   lastNotifiedAt: z
     .string()
     .datetime('Invalid timestamp format'),
@@ -222,11 +249,36 @@ export const circuitBreakerStateSchema = z.object({
   successCount: z.number().int().min(0),
 });
 
+/**
+ * Cached patch info schema for validation
+ */
+export const cachedPatchInfoSchema = detailedPatchInfoSchema.extend({
+  cachedAt: z.string().datetime('Invalid cached timestamp format'),
+  filePath: z.string().min(1).optional(),
+});
+
+/**
+ * Patch cache schema for validation
+ */
+export const patchCacheSchema = z.object({
+  patches: z.record(z.string().url(), cachedPatchInfoSchema),
+  lastUpdated: z.string().datetime('Invalid cache timestamp format'),
+  totalPatches: z.number().int().min(0),
+  metadata: z.object({
+    maxSize: z.number().int().min(1).max(10000),
+    ttlMs: z.number().int().min(60000).max(31536000000), // 1 minute to 1 year
+    totalSizeBytes: z.number().int().min(0),
+  }),
+});
+
 // Type exports
 export type EnvConfig = z.infer<typeof envSchema>;
 export type PatchInfoValidated = z.infer<typeof patchInfoSchema>;
+export type DetailedPatchInfoValidated = z.infer<typeof detailedPatchInfoSchema>;
 export type LastStatusValidated = z.infer<typeof lastStatusSchema>;
 export type DiscordEmbedValidated = z.infer<typeof discordEmbedSchema>;
 export type DiscordWebhookPayloadValidated = z.infer<typeof discordWebhookPayloadSchema>;
 export type ApplicationMetricsValidated = z.infer<typeof applicationMetricsSchema>;
 export type CircuitBreakerStateValidated = z.infer<typeof circuitBreakerStateSchema>;
+export type CachedPatchInfoValidated = z.infer<typeof cachedPatchInfoSchema>;
+export type PatchCacheValidated = z.infer<typeof patchCacheSchema>;

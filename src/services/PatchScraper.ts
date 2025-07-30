@@ -18,7 +18,7 @@ import {
   NetworkError, 
   ValidationError,
 } from '../core/errors.js';
-import { type PatchInfo, type ScrapingResult } from '../core/types.js';
+import { type PatchInfo, type DetailedPatchInfo, type ScrapingResult } from '../core/types.js';
 import { createContextLogger, logScrapingAttempt } from '../utils/logger.js';
 import { httpClient } from '../utils/httpClient.js';
 
@@ -109,6 +109,61 @@ export class PatchScraper {
 
       throw new ScrapingError('Failed to scrape patch information', {
         url: this.targetUrl,
+        originalError: error,
+      });
+    }
+  }
+
+  /**
+   * Get detailed patch information with content
+   */
+  async getDetailedPatchInfo(): Promise<DetailedPatchInfo | null> {
+    const startTime = Date.now();
+    const contextLogger = logger.child({ operation: 'getDetailedPatchInfo' });
+
+    try {
+      // First get basic patch info
+      const basicInfo = await this.getLatestPatchInfo();
+      if (!basicInfo) {
+        return null;
+      }
+
+      contextLogger.info('Fetching detailed patch content', { 
+        title: basicInfo.title,
+        url: basicInfo.url 
+      });
+
+      // Fetch the patch page content
+      const response = await httpClient.get(basicInfo.url);
+      const responseTime = Date.now() - startTime;
+
+      contextLogger.info('Patch page content fetched successfully', {
+        statusCode: response.status,
+        contentLength: response.data?.length || 0,
+        responseTime,
+      });
+
+      // Extract content and additional details
+      const detailedInfo = await this.extractDetailedContent(basicInfo, response.data);
+
+      contextLogger.info('Detailed patch information extracted successfully', {
+        title: detailedInfo.title,
+        url: detailedInfo.url,
+        contentSize: detailedInfo.contentSize,
+        version: detailedInfo.version,
+        totalTime: Date.now() - startTime,
+      });
+
+      return detailedInfo;
+
+    } catch (error) {
+      contextLogger.error({ error }, 'Failed to get detailed patch information');
+
+      if (error instanceof ScrapingError || error instanceof ParsingError) {
+        throw error;
+      }
+
+      throw new ScrapingError('Failed to get detailed patch information', {
         originalError: error,
       });
     }
@@ -420,5 +475,141 @@ export class PatchScraper {
       cacheAge: Date.now() - this.lastScrapedTime,
       cachedPatch: this.lastScrapedData,
     };
+  }
+
+  /**
+   * Extract detailed content from patch page HTML
+   */
+  private async extractDetailedContent(
+    basicInfo: PatchInfo, 
+    html: string
+  ): Promise<DetailedPatchInfo> {
+    const contextLogger = logger.child({ operation: 'extractDetailedContent' });
+    
+    try {
+      const $ = cheerio.load(html);
+      contextLogger.debug('HTML loaded for content extraction');
+
+      // Extract main content (try multiple selectors)
+      const contentSelectors = [
+        '.patch-notes-content', 
+        '.article-content',
+        '.content-wrapper',
+        'main',
+        '.main-content',
+        'article',
+        'body'
+      ];
+
+      let content = '';
+      let summary = '';
+
+      for (const selector of contentSelectors) {
+        const contentElement = $(selector);
+        if (contentElement.length > 0) {
+          // Get text content for summary (first 500 chars)
+          const textContent = contentElement.text().trim();
+          if (textContent && !summary) {
+            summary = textContent.substring(0, 500);
+            if (textContent.length > 500) {
+              summary += '...';
+            }
+          }
+
+          // Get HTML content
+          const htmlContent = contentElement.html();
+          if (htmlContent && !content) {
+            content = htmlContent.trim();
+            contextLogger.debug('Content extracted with selector', { 
+              selector, 
+              contentLength: content.length 
+            });
+            break;
+          }
+        }
+      }
+
+      // If no content found, use body as fallback
+      if (!content) {
+        content = $('body').html() || '';
+        summary = $('body').text().trim().substring(0, 500);
+        contextLogger.debug('Using body as content fallback');
+      }
+
+      // Extract version from title or URL
+      const version = this.extractVersion(basicInfo.title, basicInfo.url);
+
+      // Calculate content hash for deduplication
+      const contentHash = this.generateContentHash(content);
+
+      const detailedInfo: DetailedPatchInfo = {
+        ...basicInfo,
+        content: content || undefined,
+        summary: summary || undefined,
+        version: version || undefined,
+        contentSize: content ? Buffer.byteLength(content, 'utf8') : undefined,
+        contentHash: contentHash || undefined,
+      };
+
+      contextLogger.debug('Detailed content extraction completed', {
+        contentSize: detailedInfo.contentSize,
+        summaryLength: summary.length,
+        version: detailedInfo.version,
+        hasContent: !!content,
+      });
+
+      return detailedInfo;
+
+    } catch (error) {
+      contextLogger.error({ error }, 'Content extraction failed');
+      
+      // Return basic info if content extraction fails
+      return {
+        ...basicInfo,
+        content: undefined,
+        summary: undefined,
+        version: this.extractVersion(basicInfo.title, basicInfo.url) || undefined,
+        contentSize: undefined,
+        contentHash: undefined,
+      };
+    }
+  }
+
+  /**
+   * Extract version from title or URL
+   */
+  private extractVersion(title: string, url: string): string | null {
+    // Try to extract version from title first
+    const titleVersionMatch = title.match(/パッチ\s*(\d+\.?\d*\.?\d*)/i) || 
+                             title.match(/patch\s*(\d+\.?\d*\.?\d*)/i) ||
+                             title.match(/(\d+\.?\d*\.?\d*)\s*パッチ/i);
+    
+    if (titleVersionMatch) {
+      return titleVersionMatch[1] || null;
+    }
+
+    // Try to extract from URL
+    const urlVersionMatch = url.match(/patch[_-](\d+[_-]?\d*[_-]?\d*)/i);
+    if (urlVersionMatch) {
+      return urlVersionMatch[1]?.replace(/[_-]/g, '.') || null;
+    }
+
+    return null;
+  }
+
+  /**
+   * Generate a simple hash for content deduplication
+   */
+  private generateContentHash(content: string): string | null {
+    if (!content) return null;
+    
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    return Math.abs(hash).toString(16);
   }
 }
