@@ -182,6 +182,80 @@ export class PatchMonitor {
   }
 
   /**
+   * Initialize with current patch without sending notifications (first run only)
+   */
+  async initializeWithCurrentPatch(): Promise<{
+    success: boolean;
+    patchInfo?: PatchInfo;
+    error?: string;
+  }> {
+    const contextLogger = logger.child({ operation: 'initializeWithCurrentPatch' });
+
+    if (this.isRunning) {
+      contextLogger.warn('Operation already in progress, skipping');
+      return {
+        success: false,
+        error: 'Operation already in progress',
+      };
+    }
+
+    this.isRunning = true;
+
+    try {
+      contextLogger.info('Initializing system with current patch (no notifications)');
+
+      // Scrape the latest patch information with detailed content
+      const patchInfo = await this.patchScraper.getDetailedPatchInfo();
+
+      if (!patchInfo) {
+        contextLogger.warn('No patch information found during initialization');
+        return {
+          success: true,
+        };
+      }
+
+      contextLogger.info('Current patch found during initialization', {
+        title: patchInfo.title,
+        url: patchInfo.url,
+      });
+
+      // Cache the retrieved patch
+      try {
+        await this.patchCache.addPatch(patchInfo);
+        contextLogger.debug('Patch added to cache during initialization', {
+          title: patchInfo.title,
+        });
+      } catch (error) {
+        // Log cache error but don't fail the entire operation
+        logError(error, 'Failed to cache patch info during initialization', { patchInfo });
+      }
+
+      // Update last status WITHOUT sending notification
+      await this.updateLastStatus(patchInfo);
+
+      contextLogger.info('System initialization completed successfully', {
+        patch: patchInfo.title,
+        note: 'Status initialized - ready to monitor for new patches',
+      });
+
+      return {
+        success: true,
+        patchInfo,
+      };
+
+    } catch (error) {
+      logError(error, 'System initialization failed');
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      this.isRunning = false;
+    }
+  }
+
+  /**
    * Force send a notification for the current patch (for testing)
    */
   async forceNotification(): Promise<{
@@ -404,7 +478,7 @@ export class PatchMonitor {
   /**
    * Update last status in storage
    */
-  private async updateLastStatus(patchInfo: PatchInfo): Promise<void> {
+  async updateLastStatus(patchInfo: PatchInfo): Promise<void> {
     const contextLogger = logger.child({ operation: 'updateLastStatus' });
 
     try {
@@ -434,18 +508,37 @@ export class PatchMonitor {
    * Check if the patch is new compared to the last notified patch
    */
   private isNewPatch(patchInfo: PatchInfo): boolean {
+    const contextLogger = logger.child({ operation: 'isNewPatch' });
+    
     if (!this.lastStatus || !this.lastStatus.lastNotifiedUrl) {
+      contextLogger.debug('No last status or URL, treating as new patch', {
+        hasLastStatus: !!this.lastStatus,
+        lastNotifiedUrl: this.lastStatus?.lastNotifiedUrl || 'none',
+      });
       return true;
     }
 
-    return patchInfo.url !== this.lastStatus.lastNotifiedUrl;
+    const isNew = patchInfo.url !== this.lastStatus.lastNotifiedUrl;
+    contextLogger.debug('New patch check result', {
+      currentUrl: patchInfo.url,
+      lastNotifiedUrl: this.lastStatus.lastNotifiedUrl,
+      isNew,
+    });
+
+    return isNew;
   }
 
   /**
    * Check if this is the first run (no previous status or empty URL)
    */
   isFirstRun(): boolean {
-    return !this.lastStatus || this.lastStatus.lastNotifiedUrl === '';
+    const isFirst = !this.lastStatus || this.lastStatus.lastNotifiedUrl === '';
+    logger.debug('First run check', {
+      hasLastStatus: !!this.lastStatus,
+      lastNotifiedUrl: this.lastStatus?.lastNotifiedUrl || 'none',
+      isFirstRun: isFirst,
+    });
+    return isFirst;
   }
 
   /**

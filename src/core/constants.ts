@@ -74,12 +74,12 @@ export const HTTP_CONFIG = {
 export const SCRAPING_CONFIG = {
   /** CSS selectors for scraping with fallback priority */
   SELECTORS: {
-    /** Primary selector using data attributes */
-    PRIMARY: 'a[data-content-type="game-updates"]',
-    /** Fallback selector using class names */
-    FALLBACK: '.news-card a[href*="/news/game-updates/"]',
-    /** Last resort selector using structure */
-    LAST_RESORT: '.news-card a',
+    /** Primary selector using action class for patch links */
+    PRIMARY: 'a.action[href*="/news/game-updates/patch-"]',
+    /** Fallback selector using broader action class */
+    FALLBACK: 'a.action[href*="/news/game-updates/"]',
+    /** Last resort selector using any action link */
+    LAST_RESORT: 'a.action',
   },
   /** Title extraction selectors */
   TITLE_SELECTORS: [
@@ -87,9 +87,12 @@ export const SCRAPING_CONFIG = {
     '.card-title',
     'h3',
     '.title',
+    // For the current site structure, text might be directly in the link
+    '',  // Will use link text directly
   ],
   /** URL validation patterns */
   URL_PATTERNS: [
+    /\/news\/game-updates\/patch-[\d.-]+-notes/i,
     /\/news\/game-updates\/patch-[\d.-]+/i,
     /\/news\/game-updates\/[^/]+/i,
   ],

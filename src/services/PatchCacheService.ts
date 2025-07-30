@@ -80,11 +80,28 @@ export class PatchCacheService {
       const existingPatch = this.cache!.patches[patchInfo.url];
 
       if (existingPatch) {
-        contextLogger.debug('Patch already exists in cache, skipping', {
+        contextLogger.debug('Patch already exists in cache, checking if individual file exists', {
           title: patchInfo.title,
           cachedAt: existingPatch.cachedAt,
+          filePath: existingPatch.filePath,
         });
-        return;
+        
+        // Check if individual file exists and create it if missing
+        if (existingPatch.filePath) {
+          try {
+            await fs.access(existingPatch.filePath);
+            contextLogger.debug('Individual patch file exists, skipping');
+            return;
+          } catch {
+            contextLogger.info('Individual patch file missing, recreating', {
+              filePath: existingPatch.filePath,
+            });
+            // Continue to recreate the file
+          }
+        } else {
+          contextLogger.debug('No individual file path, skipping');
+          return;
+        }
       }
 
       // Generate filename for individual patch file

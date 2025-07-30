@@ -42,24 +42,32 @@ class Application {
       // Perform initial check with timeout protection
       const isFirstRun = this.patchMonitor.isFirstRun();
       logger.info(isFirstRun ? 
-        '🚀 First run detected - fetching latest patch information' : 
+        '🚀 First run detected - fetching latest patch information (no notifications sent)' : 
         '🔄 Performing startup patch check'
       );
       
       try {
-        const initialCheckPromise = this.patchMonitor.checkAndNotify();
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Initial check timeout (30s)')), 30000);
-        });
+        let initialResult: Awaited<ReturnType<typeof this.patchMonitor.checkAndNotify>>;
         
-        const initialResult = await Promise.race([initialCheckPromise, timeoutPromise]);
+        if (isFirstRun) {
+          // On first run, initialize status without sending notifications
+          initialResult = await this.performInitialSetup();
+        } else {
+          // Regular startup check
+          const initialCheckPromise = this.patchMonitor.checkAndNotify();
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Initial check timeout (30s)')), 30000);
+          });
+          
+          initialResult = await Promise.race([initialCheckPromise, timeoutPromise]);
+        }
         
         if (initialResult.success) {
           if (isFirstRun) {
             logger.info('✅ Latest patch information retrieved successfully', {
               patch: initialResult.patchInfo?.title || 'No patches found',
               url: initialResult.patchInfo?.url || 'N/A',
-              note: 'System is now ready to monitor for new patches'
+              note: 'System initialized - will monitor for new patches from now on'
             });
           } else if (initialResult.newPatchFound) {
             logger.info('🎉 New patch detected during startup!', {
@@ -129,6 +137,52 @@ class Application {
     logger.info('Interval scheduler started successfully', {
       nextCheckIn: `${config.CHECK_INTERVAL_MINUTES} minutes`,
     });
+  }
+
+  /**
+   * Perform initial setup without sending notifications (first run)
+   */
+  private async performInitialSetup(): Promise<Awaited<ReturnType<PatchMonitor['checkAndNotify']>>> {
+    const contextLogger = logger.child({ operation: 'performInitialSetup' });
+    
+    try {
+      contextLogger.info('Performing initial setup - fetching latest patch without notifications');
+      
+      // Use the dedicated initialization method that doesn't send notifications
+      const result = await this.patchMonitor.initializeWithCurrentPatch();
+      
+      if (result.success && result.patchInfo) {
+        contextLogger.info('Initial setup completed successfully', {
+          patch: result.patchInfo.title,
+          note: 'System initialized - ready for monitoring',
+        });
+      }
+      
+      // Convert to checkAndNotify format
+      const response: Awaited<ReturnType<PatchMonitor['checkAndNotify']>> = {
+        success: result.success,
+        newPatchFound: false, // This is initial setup, not a "new" patch
+      };
+      
+      if (result.patchInfo) {
+        response.patchInfo = result.patchInfo;
+      }
+      
+      if (result.error) {
+        response.error = result.error;
+      }
+      
+      return response;
+
+    } catch (error) {
+      contextLogger.error('Initial setup failed', { error });
+      
+      return {
+        success: false,
+        newPatchFound: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   /**

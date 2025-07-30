@@ -279,13 +279,19 @@ export class PatchScraper {
       // Extract title using multiple selectors
       let title: string | null = null;
       for (const titleSelector of SCRAPING_CONFIG.TITLE_SELECTORS) {
-        const titleElement = element.find(titleSelector);
-        if (titleElement.length > 0) {
-          title = titleElement.text().trim();
-          if (title) {
-            contextLogger.debug('Title found', { titleSelector, title });
-            break;
+        if (titleSelector === '') {
+          // Use the link element's text directly
+          title = element.text().trim();
+        } else {
+          const titleElement = element.find(titleSelector);
+          if (titleElement.length > 0) {
+            title = titleElement.text().trim();
           }
+        }
+        
+        if (title) {
+          contextLogger.debug('Title found', { titleSelector, title });
+          break;
         }
       }
 

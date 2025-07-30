@@ -188,6 +188,8 @@ export class HttpClient {
       headers: HTTP_CONFIG.DEFAULT_HEADERS,
       maxRedirects: 5,
       validateStatus: (status) => status < 500, // Don't throw for 4xx errors
+      responseType: 'text', // Ensure we get text response to handle encoding properly
+      responseEncoding: 'utf8', // Explicitly set UTF-8 encoding
     });
 
     this.setupInterceptors();
