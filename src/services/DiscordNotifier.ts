@@ -40,10 +40,14 @@ export class DiscordNotifier {
    */
   async sendPatchNotification(patchInfo: PatchInfo): Promise<void> {
     const startTime = Date.now();
+    const notificationId = Math.random().toString(36).substring(7);
     const contextLogger = logger.child({
       operation: 'sendPatchNotification',
       patchTitle: patchInfo.title,
+      notificationId,
     });
+
+    contextLogger.info('📧 Discord notification starting', { notificationId });
 
     try {
       contextLogger.info('Preparing Discord notification', {

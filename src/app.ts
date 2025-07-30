@@ -31,7 +31,11 @@ class Application {
    */
   async start(): Promise<void> {
     try {
-      logger.info('Starting LoL Patch Notifier application');
+      logger.info('🚀 Starting LoL Patch Notifier application', {
+        processId: process.pid,
+        nodeVersion: process.version,
+        platform: process.platform,
+      });
       logStartup();
 
       // Initialize patch monitor
@@ -39,56 +43,31 @@ class Application {
       await this.patchMonitor.initialize();
       logger.info('Patch monitor initialization completed');
 
-      // Perform initial check with timeout protection
-      const isFirstRun = this.patchMonitor.isFirstRun();
-      logger.info(isFirstRun ? 
-        '🚀 First run detected - fetching latest patch information (no notifications sent)' : 
-        '🔄 Performing startup patch check'
-      );
+      // Perform initial check using the same logic as scheduled checks
+      logger.info('🔄 Performing startup patch check...');
       
       try {
-        let initialResult: Awaited<ReturnType<typeof this.patchMonitor.checkAndNotify>>;
-        
-        if (isFirstRun) {
-          // On first run, initialize status without sending notifications
-          initialResult = await this.performInitialSetup();
-        } else {
-          // Regular startup check
-          const initialCheckPromise = this.patchMonitor.checkAndNotify();
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Initial check timeout (30s)')), 30000);
-          });
-          
-          initialResult = await Promise.race([initialCheckPromise, timeoutPromise]);
-        }
+        const initialResult = await this.performSinglePatchCheck('startup');
         
         if (initialResult.success) {
-          if (isFirstRun) {
-            logger.info('✅ Latest patch information retrieved successfully', {
-              patch: initialResult.patchInfo?.title || 'No patches found',
-              url: initialResult.patchInfo?.url || 'N/A',
-              note: 'System initialized - will monitor for new patches from now on'
-            });
-          } else if (initialResult.newPatchFound) {
-            logger.info('🎉 New patch detected during startup!', {
+          if (initialResult.newPatchFound) {
+            logger.info('🎉 New patch found during startup - notification sent', {
               patch: initialResult.patchInfo?.title,
-              url: initialResult.patchInfo?.url,
             });
           } else {
-            logger.info('✅ System is up to date - no new patches', {
-              lastKnownPatch: initialResult.patchInfo?.title || 'No previous patch data',
+            logger.info('✅ System is up to date', {
+              currentPatch: initialResult.patchInfo?.title || 'Unknown',
             });
           }
         } else {
-          logger.warn('⚠️ Initial check failed - will retry on next scheduled run', { 
+          logger.warn('⚠️ Startup check failed - will retry on next scheduled run', { 
             error: initialResult.error 
           });
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn('⚠️ Initial check failed or timed out - continuing with startup', { 
+        logger.warn('⚠️ Startup check failed - scheduled checks will continue', { 
           error: errorMessage,
-          note: 'This is non-blocking - regular checks will continue'
         });
       }
 
@@ -107,6 +86,28 @@ class Application {
       logError(error, 'Failed to start application');
       process.exit(1);
     }
+  }
+
+  /**
+   * Perform a single patch check operation (shared by startup and scheduled checks)
+   */
+  private async performSinglePatchCheck(context: 'startup' | 'scheduled'): Promise<Awaited<ReturnType<PatchMonitor['checkAndNotify']>>> {
+    const contextLogger = logger.child({ 
+      operation: 'performSinglePatchCheck',
+      context,
+    });
+    
+    contextLogger.info(`🔍 Starting ${context} patch check`);
+    
+    const result = await this.patchMonitor.checkAndNotify();
+    
+    contextLogger.info(`✅ ${context} patch check completed`, {
+      success: result.success,
+      newPatchFound: result.newPatchFound,
+      patch: result.patchInfo?.title || 'None',
+    });
+    
+    return result;
   }
 
   /**
@@ -139,78 +140,13 @@ class Application {
     });
   }
 
-  /**
-   * Perform initial setup without sending notifications (first run)
-   */
-  private async performInitialSetup(): Promise<Awaited<ReturnType<PatchMonitor['checkAndNotify']>>> {
-    const contextLogger = logger.child({ operation: 'performInitialSetup' });
-    
-    try {
-      contextLogger.info('Performing initial setup - fetching latest patch without notifications');
-      
-      // Use the dedicated initialization method that doesn't send notifications
-      const result = await this.patchMonitor.initializeWithCurrentPatch();
-      
-      if (result.success && result.patchInfo) {
-        contextLogger.info('Initial setup completed successfully', {
-          patch: result.patchInfo.title,
-          note: 'System initialized - ready for monitoring',
-        });
-      }
-      
-      // Convert to checkAndNotify format
-      const response: Awaited<ReturnType<PatchMonitor['checkAndNotify']>> = {
-        success: result.success,
-        newPatchFound: false, // This is initial setup, not a "new" patch
-      };
-      
-      if (result.patchInfo) {
-        response.patchInfo = result.patchInfo;
-      }
-      
-      if (result.error) {
-        response.error = result.error;
-      }
-      
-      return response;
-
-    } catch (error) {
-      contextLogger.error('Initial setup failed', { error });
-      
-      return {
-        success: false,
-        newPatchFound: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
 
   /**
    * Perform a scheduled patch check
    */
   private async performScheduledCheck(): Promise<void> {
-    const contextLogger = logger.child({ operation: 'scheduledCheck' });
-    
     try {
-      contextLogger.info('Starting scheduled patch check');
-      
-      const result = await this.patchMonitor.checkAndNotify();
-      
-      if (result.success) {
-        if (result.newPatchFound) {
-          contextLogger.info('Scheduled check found new patch', {
-            patch: result.patchInfo?.title,
-            url: result.patchInfo?.url,
-          });
-        } else {
-          contextLogger.info('Scheduled check completed, no new patches');
-        }
-      } else {
-        contextLogger.error('Scheduled check failed', { 
-          error: result.error,
-        });
-      }
-
+      await this.performSinglePatchCheck('scheduled');
     } catch (error) {
       logError(error, 'Unexpected error during scheduled check');
     }

@@ -79,18 +79,24 @@ export class PatchMonitor {
   }
 
   /**
-   * Check for new patches and send notifications if found
+   * Perform a single patch check operation
    */
-  async checkAndNotify(): Promise<{
+  async performPatchCheck(): Promise<{
     success: boolean;
     newPatchFound: boolean;
     patchInfo?: PatchInfo;
     error?: string;
   }> {
-    const contextLogger = logger.child({ operation: 'checkAndNotify' });
+    const operationId = Math.random().toString(36).substring(7);
+    const contextLogger = logger.child({ 
+      operation: 'performPatchCheck',
+      operationId,
+    });
+
+    contextLogger.info('🟢 performPatchCheck() called', { operationId });
 
     if (this.isRunning) {
-      contextLogger.warn('Check already in progress, skipping');
+      contextLogger.warn('⚠️ Check already in progress, skipping', { operationId });
       return {
         success: false,
         newPatchFound: false,
@@ -99,33 +105,30 @@ export class PatchMonitor {
     }
 
     this.isRunning = true;
+    contextLogger.info('🔒 Setting isRunning = true', { operationId });
 
     try {
-      contextLogger.info('Starting patch check');
+      contextLogger.info('🔍 Fetching patch information...');
 
       // Scrape the latest patch information with detailed content
       const patchInfo = await this.patchScraper.getDetailedPatchInfo();
 
       if (!patchInfo) {
-        contextLogger.warn('No patch information found');
+        contextLogger.warn('⚠️ No patch information found');
         return {
           success: true,
           newPatchFound: false,
         };
       }
 
-      contextLogger.info('Latest patch found', {
-        title: patchInfo.title,
-        url: patchInfo.url,
+      contextLogger.info('📄 Latest patch found', {
+        patch: patchInfo.title,
       });
 
       // Cache the retrieved patch
       try {
         await this.patchCache.addPatch(patchInfo);
-        contextLogger.debug('Patch added to cache', {
-          title: patchInfo.title,
-          totalCached: this.patchCache.getCacheStats().totalPatches,
-        });
+        contextLogger.debug('📦 Patch cached successfully');
       } catch (error) {
         // Log cache error but don't fail the entire operation
         logError(error, 'Failed to cache patch info', { patchInfo });
@@ -135,11 +138,6 @@ export class PatchMonitor {
       const isNewPatch = this.isNewPatch(patchInfo);
 
       if (!isNewPatch) {
-        contextLogger.info('No new patch found', {
-          currentPatch: patchInfo.title,
-          lastNotified: this.lastStatus?.lastNotifiedTitle || 'none',
-        });
-
         return {
           success: true,
           newPatchFound: false,
@@ -147,10 +145,7 @@ export class PatchMonitor {
         };
       }
 
-      contextLogger.info('New patch detected, sending notification', {
-        newPatch: patchInfo.title,
-        previousPatch: this.lastStatus?.lastNotifiedTitle || 'none',
-      });
+      contextLogger.info('📢 Sending Discord notification...');
 
       // Send Discord notification
       await this.discordNotifier.sendPatchNotification(patchInfo);
@@ -158,9 +153,7 @@ export class PatchMonitor {
       // Update last status
       await this.updateLastStatus(patchInfo);
 
-      contextLogger.info('Patch notification completed successfully', {
-        patch: patchInfo.title,
-      });
+      contextLogger.info('🎉 Patch notification sent successfully');
 
       return {
         success: true,
@@ -178,81 +171,20 @@ export class PatchMonitor {
       };
     } finally {
       this.isRunning = false;
+      contextLogger.info('🔓 Setting isRunning = false', { operationId });
     }
   }
 
   /**
-   * Initialize with current patch without sending notifications (first run only)
+   * Check for new patches and send notifications if found (public API)
    */
-  async initializeWithCurrentPatch(): Promise<{
+  async checkAndNotify(): Promise<{
     success: boolean;
+    newPatchFound: boolean;
     patchInfo?: PatchInfo;
     error?: string;
   }> {
-    const contextLogger = logger.child({ operation: 'initializeWithCurrentPatch' });
-
-    if (this.isRunning) {
-      contextLogger.warn('Operation already in progress, skipping');
-      return {
-        success: false,
-        error: 'Operation already in progress',
-      };
-    }
-
-    this.isRunning = true;
-
-    try {
-      contextLogger.info('Initializing system with current patch (no notifications)');
-
-      // Scrape the latest patch information with detailed content
-      const patchInfo = await this.patchScraper.getDetailedPatchInfo();
-
-      if (!patchInfo) {
-        contextLogger.warn('No patch information found during initialization');
-        return {
-          success: true,
-        };
-      }
-
-      contextLogger.info('Current patch found during initialization', {
-        title: patchInfo.title,
-        url: patchInfo.url,
-      });
-
-      // Cache the retrieved patch
-      try {
-        await this.patchCache.addPatch(patchInfo);
-        contextLogger.debug('Patch added to cache during initialization', {
-          title: patchInfo.title,
-        });
-      } catch (error) {
-        // Log cache error but don't fail the entire operation
-        logError(error, 'Failed to cache patch info during initialization', { patchInfo });
-      }
-
-      // Update last status WITHOUT sending notification
-      await this.updateLastStatus(patchInfo);
-
-      contextLogger.info('System initialization completed successfully', {
-        patch: patchInfo.title,
-        note: 'Status initialized - ready to monitor for new patches',
-      });
-
-      return {
-        success: true,
-        patchInfo,
-      };
-
-    } catch (error) {
-      logError(error, 'System initialization failed');
-
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    } finally {
-      this.isRunning = false;
-    }
+    return await this.performPatchCheck();
   }
 
   /**
@@ -450,14 +382,14 @@ export class PatchMonitor {
       );
 
       if (this.lastStatus) {
-        contextLogger.info('Last status loaded successfully', {
-          lastNotifiedUrl: this.lastStatus.lastNotifiedUrl,
+        contextLogger.info('📂 Previous status loaded successfully', {
+          lastNotifiedPatch: this.lastStatus.lastNotifiedTitle || 'Unknown',
           lastNotifiedAt: this.lastStatus.lastNotifiedAt,
         });
       } else {
-        contextLogger.info('No previous status found, first run detected');
+        contextLogger.info('📂 First run detected - initializing with empty status');
 
-        // Initialize with empty status
+        // Initialize with empty status for first run
         this.lastStatus = {
           lastNotifiedUrl: '',
           lastNotifiedAt: new Date().toISOString(),
@@ -491,9 +423,8 @@ export class PatchMonitor {
       await this.storage.set(STORAGE_CONFIG.LAST_STATUS_KEY, newStatus);
       this.lastStatus = newStatus;
 
-      contextLogger.info('Last status updated successfully', {
-        lastNotifiedUrl: newStatus.lastNotifiedUrl,
-        lastNotifiedTitle: newStatus.lastNotifiedTitle,
+      contextLogger.info('📝 Notification status updated successfully', {
+        patch: newStatus.lastNotifiedTitle,
       });
 
     } catch (error) {
@@ -510,20 +441,25 @@ export class PatchMonitor {
   private isNewPatch(patchInfo: PatchInfo): boolean {
     const contextLogger = logger.child({ operation: 'isNewPatch' });
     
+    // First run: no last status or empty URL
     if (!this.lastStatus || !this.lastStatus.lastNotifiedUrl) {
-      contextLogger.debug('No last status or URL, treating as new patch', {
-        hasLastStatus: !!this.lastStatus,
-        lastNotifiedUrl: this.lastStatus?.lastNotifiedUrl || 'none',
-      });
+      contextLogger.info('💡 First run or empty URL - treating as new patch');
       return true;
     }
 
+    // Compare URLs
     const isNew = patchInfo.url !== this.lastStatus.lastNotifiedUrl;
-    contextLogger.debug('New patch check result', {
-      currentUrl: patchInfo.url,
-      lastNotifiedUrl: this.lastStatus.lastNotifiedUrl,
-      isNew,
-    });
+    
+    if (isNew) {
+      contextLogger.info('🆕 New patch discovered', {
+        currentPatch: patchInfo.title,
+        previousPatch: this.lastStatus.lastNotifiedTitle || 'Unknown',
+      });
+    } else {
+      contextLogger.info('✅ Patch already notified', {
+        patch: patchInfo.title,
+      });
+    }
 
     return isNew;
   }

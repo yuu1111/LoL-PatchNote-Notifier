@@ -12,20 +12,20 @@ import { isAppError, extractErrorInfo } from '../core/errors.js';
  * Create and configure the logger instance
  */
 function createLogger(): pino.Logger {
+  // Generate log filename with current date and time
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hour = String(now.getHours()).padStart(2, '0');
+  const minute = String(now.getMinutes()).padStart(2, '0');
+  const logFileName = `${year}-${month}-${day}-${hour}${minute}.log`;
+  const logFilePath = `logs/${logFileName}`;
+
   const loggerConfig: pino.LoggerOptions = {
     level: config.LOG_LEVEL,
     name: APP_CONFIG.NAME,
     
-    // Format configuration
-    formatters: {
-      level: (label) => ({ level: label.toUpperCase() }),
-      bindings: (bindings) => ({
-        pid: bindings['pid'],
-        hostname: bindings['hostname'],
-        name: bindings['name'],
-      }),
-    },
-
     // Timestamp configuration
     timestamp: pino.stdTimeFunctions.isoTime,
 
@@ -62,35 +62,49 @@ function createLogger(): pino.Logger {
     },
   };
 
-  // Add transport configuration for production
-  if (config.NODE_ENV === 'production') {
-    loggerConfig.transport = {
-      target: 'pino-pretty',
-      options: {
-        colorize: false,
-        translateTime: 'SYS:standard',
-        ignore: 'pid,hostname',
-        singleLine: true,
+  // Configure multiple transports: console + file
+  loggerConfig.transport = {
+    targets: [
+      // Console output with pretty formatting
+      {
+        target: 'pino-pretty',
+        level: config.LOG_LEVEL,
+        options: {
+          colorize: true,
+          translateTime: 'SYS:HH:MM:ss',
+          ignore: 'pid,hostname,name,env,version',
+          singleLine: false,
+          messageFormat: '{msg}',
+        },
       },
-    };
-  } else {
-    // Pretty printing for development
-    loggerConfig.transport = {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'SYS:HH:MM:ss',
-        ignore: 'pid,hostname,name',
-        singleLine: false,
+      // File output with structured JSON
+      {
+        target: 'pino/file',
+        level: config.LOG_LEVEL,
+        options: {
+          destination: logFilePath,
+          mkdir: true,
+        },
       },
-    };
-  }
+    ],
+  };
 
   return pino(loggerConfig);
 }
 
 // Create the logger instance
 const logger = createLogger();
+
+// Log the file path on startup
+const now = new Date();
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, '0');
+const day = String(now.getDate()).padStart(2, '0');
+const hour = String(now.getHours()).padStart(2, '0');
+const minute = String(now.getMinutes()).padStart(2, '0');
+const currentLogFile = `logs/${year}-${month}-${day}-${hour}${minute}.log`;
+
+logger.info(`📝 Logs will be written to: ${currentLogFile}`);
 
 /**
  * Application metrics tracking
