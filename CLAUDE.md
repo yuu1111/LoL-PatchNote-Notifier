@@ -103,3 +103,118 @@ The specification outlines three deployment strategies:
 3. **PaaS** (Render, Fly.io)
 
 For serverless deployments, state persistence needs to be moved from JSON files to cloud storage (S3, Cloud Storage, Redis, DynamoDB).
+
+## Development Guidelines
+
+### Semantic Versioning (SemVer)
+
+This project follows [Semantic Versioning 2.0.0](https://semver.org/) specification:
+
+**Version Format**: `MAJOR.MINOR.PATCH` (e.g., `1.4.2`)
+
+- **MAJOR** version: Incremented for incompatible API changes
+  - Breaking changes to configuration format
+  - Removal of deprecated features
+  - Major architectural changes
+  
+- **MINOR** version: Incremented for backwards-compatible functionality additions
+  - New features (e.g., new notification channels)
+  - New configuration options with sensible defaults
+  - Performance improvements
+  - New optional dependencies
+  
+- **PATCH** version: Incremented for backwards-compatible bug fixes
+  - Bug fixes that don't change functionality
+  - Security patches
+  - Documentation updates
+  - Dependency updates (patch/minor)
+
+**Pre-release versions**: Use suffixes like `-alpha.1`, `-beta.2`, `-rc.1` for pre-release versions.
+
+**Examples**:
+- `1.0.0` → `1.0.1` (Bug fix)
+- `1.0.1` → `1.1.0` (New feature: Redis support)
+- `1.1.0` → `2.0.0` (Breaking: Change config format)
+
+### Semantic Commit Messages
+
+This project follows [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+**Format**: `<type>(<scope>): <description>`
+
+#### Commit Types
+
+- **feat**: A new feature for the user
+- **fix**: A bug fix for the user
+- **docs**: Documentation changes
+- **style**: Code style changes (formatting, missing semicolons, etc.)
+- **refactor**: Code changes that neither fix bugs nor add features
+- **perf**: Performance improvements
+- **test**: Adding or updating tests
+- **build**: Changes to build system or external dependencies
+- **ci**: Changes to CI configuration files and scripts
+- **chore**: Other changes that don't modify src or test files
+- **revert**: Reverts a previous commit
+
+#### Scopes (Optional)
+
+- **config**: Configuration management
+- **scraper**: Patch scraping functionality
+- **discord**: Discord notification system
+- **storage**: Data persistence layer
+- **http**: HTTP client and networking
+- **logger**: Logging system
+- **monitor**: Patch monitoring orchestration
+
+#### Examples
+
+```bash
+# Feature additions
+feat(discord): add rich embed support for patch notifications
+feat(config): implement Redis storage backend
+feat(scraper): add fallback selectors for patch detection
+
+# Bug fixes
+fix(http): resolve timeout issues with circuit breaker
+fix(config): correct environment variable validation
+fix(discord): handle webhook rate limiting properly
+
+# Documentation
+docs: update README with deployment instructions
+docs(config): add configuration examples for production
+
+# Performance improvements
+perf(scraper): optimize CSS selector performance
+perf(storage): implement caching for repeated reads
+
+# Breaking changes (use ! or BREAKING CHANGE footer)
+feat(config)!: change CHECK_INTERVAL_CRON to CHECK_INTERVAL_MINUTES
+feat!: migrate from file storage to Redis by default
+
+# With detailed breaking change description
+feat(config)!: simplify interval configuration
+
+BREAKING CHANGE: CHECK_INTERVAL_CRON environment variable has been 
+replaced with CHECK_INTERVAL_MINUTES. Update your .env file to use 
+integer minutes instead of cron expressions.
+
+Before: CHECK_INTERVAL_CRON=0 */60 * * *
+After: CHECK_INTERVAL_MINUTES=60
+```
+
+#### Commit Message Rules
+
+1. **Use present tense**: "add feature" not "added feature"
+2. **Use imperative mood**: "fix bug" not "fixes bug"
+3. **Keep first line under 72 characters**
+4. **Capitalize first letter of description**
+5. **No period at the end of the description**
+6. **Include body for complex changes**
+7. **Reference issues**: `fix(scraper): resolve timeout issues (#123)`
+
+#### Automated Versioning
+
+Commits trigger automatic version bumps:
+- `fix:` → PATCH version bump
+- `feat:` → MINOR version bump  
+- `feat!:` or `BREAKING CHANGE:` → MAJOR version bump
