@@ -26,13 +26,13 @@ class PatchTester {
   async testPatchVersion(version: string): Promise<void> {
     try {
       Logger.info(`🧪 パッチ ${version} の取得テストを開始`);
-      
+
       const patchUrl = `https://www.leagueoflegends.com/ja-jp/news/game-updates/patch-${version.replace('.', '-')}-notes`;
       Logger.info(`📋 対象URL: ${patchUrl}`);
 
       // 個別ページから詳細情報を取得
       const detailedInfo = await this.patchScraper.scrapeDetailedPatch(patchUrl);
-      
+
       if (!detailedInfo.content && !detailedInfo.imageUrl) {
         Logger.error(`❌ パッチ ${version} のデータ取得に失敗`);
         return;
@@ -79,7 +79,7 @@ class PatchTester {
       }
 
       Logger.info(`🎯 パッチ ${version} のテスト完了`);
-      
+
     } catch (error) {
       Logger.error(`❌ パッチ ${version} のテスト中にエラー:`, error);
     }
@@ -90,13 +90,13 @@ class PatchTester {
    */
   async testMultipleVersions(versions: string[]): Promise<void> {
     Logger.info(`🎯 ${versions.length}個のパッチバージョンをテスト開始`);
-    
+
     for (const version of versions) {
       await this.testPatchVersion(version);
       Logger.info(`⏳ 次のテストまで2秒待機...`);
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
-    
+
     Logger.info(`🏁 全バージョンのテスト完了`);
   }
 
@@ -106,7 +106,7 @@ class PatchTester {
   async detectAvailablePatches(): Promise<string[]> {
     try {
       Logger.info(`🔍 パッチ一覧ページから利用可能なパッチを検出中...`);
-      
+
       const latestPatch = await this.patchScraper.scrapeLatestPatch();
       if (!latestPatch) {
         Logger.error('❌ パッチ一覧の取得に失敗');
@@ -116,10 +116,10 @@ class PatchTester {
       // 現在のバージョンから過去3バージョンを生成
       const currentVersion = latestPatch.version;
       const versions = this.generateVersionList(currentVersion, 3);
-      
+
       Logger.info(`📋 検出されたパッチバージョン: ${versions.join(', ')}`);
       return versions;
-      
+
     } catch (error) {
       Logger.error('❌ パッチ検出中にエラー:', error);
       return [];
@@ -132,18 +132,18 @@ class PatchTester {
   private generateVersionList(currentVersion: string, count: number): string[] {
     const versions: string[] = [];
     const parts = currentVersion.split('.');
-    
+
     if (parts.length >= 2 && parts[0] && parts[1]) {
       const major = parseInt(parts[0]);
       let minor = parseInt(parts[1]);
-      
+
       for (let i = 0; i < count; i++) {
         versions.push(`${major}.${minor}`);
         minor--;
         if (minor < 1) break; // 25.1より前は考慮しない
       }
     }
-    
+
     return versions;
   }
 
@@ -153,14 +153,14 @@ class PatchTester {
   async verifySavedPatch(version: string): Promise<void> {
     try {
       Logger.info(`🔍 パッチ ${version} の保存データを確認中...`);
-      
+
       const fs = await import('fs/promises');
       const path = await import('path');
-      
+
       const patchDir = path.join(process.cwd(), 'patches', `patch_${version}`);
       const jsonFile = path.join(patchDir, `patch_${version}.json`);
       const imageFile = path.join(patchDir, `patch_${version}.jpg`);
-      
+
       // JSONファイルの確認
       try {
         const jsonContent = await fs.readFile(jsonFile, 'utf8');
@@ -172,7 +172,7 @@ class PatchTester {
       } catch (jsonError) {
         Logger.error(`❌ JSONファイル読み込み失敗: ${jsonError}`);
       }
-      
+
       // 画像ファイルの確認
       try {
         const imageStats = await fs.stat(imageFile);
@@ -180,7 +180,7 @@ class PatchTester {
       } catch (imageError) {
         Logger.warn(`⚠️ 画像ファイルが見つかりません: ${imageFile}`);
       }
-      
+
     } catch (error) {
       Logger.error(`❌ 保存データ確認中にエラー:`, error);
     }
@@ -190,7 +190,7 @@ class PatchTester {
 // メイン実行部分
 if (require.main === module) {
   const tester = new PatchTester();
-  
+
   const args = process.argv.slice(2);
   const command = args[0];
   const version = args[1];
@@ -204,7 +204,7 @@ if (require.main === module) {
         console.log('例: npm run patch-test test 25.14');
       }
       break;
-    
+
     case 'multi':
       const versions = args.slice(1);
       if (versions.length > 0) {
@@ -213,11 +213,11 @@ if (require.main === module) {
         tester.testMultipleVersions(['25.15', '25.14']);
       }
       break;
-    
+
     case 'detect':
       tester.detectAvailablePatches();
       break;
-    
+
     case 'verify':
       if (version) {
         tester.verifySavedPatch(version);
@@ -225,7 +225,7 @@ if (require.main === module) {
         console.log('使用方法: npm run patch-test verify <version>');
       }
       break;
-    
+
     default:
       console.log('🎯 LoL Patch Tester');
       console.log('');

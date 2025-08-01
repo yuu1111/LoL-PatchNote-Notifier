@@ -24,11 +24,11 @@ export class ImageDownloader {
   public async downloadPatchImage(imageUrl: string, patchVersion: string): Promise<string> {
     try {
       Logger.info(`Downloading patch image for version ${patchVersion}: ${imageUrl}`);
-      
+
       // Create patch-specific directory
       const sanitizedVersion = patchVersion.replace(/[^a-zA-Z0-9.-]/g, '_');
       const patchDir = path.join(config.storage.patchesDir, `patch_${sanitizedVersion}`);
-      
+
       // Generate filename based on URL and version
       const filename = this.generateImageFilename(imageUrl, patchVersion);
       const localPath = path.join(patchDir, filename);
@@ -54,7 +54,7 @@ export class ImageDownloader {
       }
 
       // Convert ArrayBuffer to Buffer if needed
-      const imageBuffer = response.data instanceof ArrayBuffer 
+      const imageBuffer = response.data instanceof ArrayBuffer
         ? Buffer.from(response.data)
         : response.data as Buffer;
 
@@ -65,18 +65,18 @@ export class ImageDownloader {
 
       // Save image to disk
       await FileStorage.writeBinary(localPath, imageBuffer);
-      
+
       Logger.info(`Successfully downloaded and cached image: ${localPath}`);
       return localPath;
-      
+
     } catch (error) {
       const message = `Failed to download patch image from ${imageUrl}`;
       Logger.error(message, error);
-      
+
       if (error instanceof AppError || error instanceof NetworkError) {
         throw error;
       }
-      
+
       throw new AppError(message, 'IMAGE_DOWNLOAD_ERROR');
     }
   }  /**
@@ -85,10 +85,10 @@ export class ImageDownloader {
   private generateImageFilename(imageUrl: string, patchVersion: string): string {
     // Extract file extension from URL
     const extension = this.extractFileExtension(imageUrl);
-    
+
     // Sanitize version for filename
     const sanitizedVersion = patchVersion.replace(/[^a-zA-Z0-9.-]/g, '_');
-    
+
     // Simple filename: patch_25.15.png
     return `patch_${sanitizedVersion}.${extension}`;
   }
@@ -100,11 +100,11 @@ export class ImageDownloader {
     // Try to get extension from URL path
     const urlPath = new URL(url).pathname;
     const pathExtension = path.extname(urlPath).slice(1).toLowerCase();
-    
+
     if (pathExtension && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(pathExtension)) {
       return pathExtension;
     }
-    
+
     // Default to jpg if can't determine
     return 'jpg';
   }

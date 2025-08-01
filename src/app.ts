@@ -9,7 +9,6 @@ import { DiscordNotifier } from './services/DiscordNotifier';
 import { ImageDownloader } from './services/ImageDownloader';
 import { StateManager } from './services/StateManager';
 import { Scheduler } from './services/Scheduler';
-import { PatchVersionManager } from './services/PatchVersionManager';
 import { Logger } from './utils/logger';
 import { config } from './config';
 import { AppError, NetworkError, ScrapingError, DiscordError } from './types';
@@ -23,7 +22,6 @@ export class App {
   private imageDownloader: ImageDownloader;
   private stateManager: StateManager;
   private scheduler: Scheduler;
-  private versionManager: PatchVersionManager;
   private isShuttingDown = false;
 
   constructor() {
@@ -32,7 +30,6 @@ export class App {
     this.imageDownloader = new ImageDownloader();
     this.stateManager = new StateManager();
     this.scheduler = new Scheduler();
-    this.versionManager = new PatchVersionManager();
   }
 
   /**
@@ -46,21 +43,13 @@ export class App {
       await this.stateManager.setRunningState(true);
       await this.stateManager.validateState();
 
-      // 設定に応じてスケジューラーを開始
-      const useAdvancedDetection = process.env.USE_ADVANCED_PATCH_DETECTION === 'true';
-      
-      if (useAdvancedDetection) {
-        Logger.info('🚀 改良版パッチ検出システムを使用します');
-        this.scheduler.start(() => this.checkForPatchesAdvanced());
-      } else {
-        Logger.info('📋 標準パッチ検出システムを使用します');
-        this.scheduler.start(() => this.checkForPatches());
-      }
+      // 標準パッチ検出システムでスケジューラーを開始
+      Logger.info('📋 標準パッチ検出システムを使用します');
+      this.scheduler.start(() => this.checkForPatches());
 
       Logger.info(`✅ アプリケーションが正常に開始されました`);
       Logger.info(`📋 設定: パッチノートURL=${config.lol.patchNotesUrl}`);
       Logger.info(`🔄 監視間隔: ${config.monitoring.checkIntervalMinutes}分`);
-      Logger.info(`🔍 パッチ検出システム: ${useAdvancedDetection ? '改良版（複数パッチ対応）' : '標準版'}`);
       
     } catch (error) {
       Logger.error('❌ アプリケーションの開始に失敗しました', error);
@@ -95,84 +84,9 @@ export class App {
     }
   }
 
-  /**
-   * 改良されたパッチノート監視の実行（複数パッチ対応）
-   */
-  public async checkForPatchesAdvanced(): Promise<void> {
-    try {
-      Logger.info('🔍 改良版パッチチェック開始: 複数パッチ対応');
-
-      // 新しいパッチを検出
-      const newPatches = await this.versionManager.checkForNewPatches();
-      
-      if (newPatches.length === 0) {
-        Logger.info('📝 新しいパッチは見つかりませんでした');
-        return;
-      }
-
-      Logger.info(`🆕 ${newPatches.length}個の新しいパッチを処理します`);
-
-      // 各新しいパッチを処理
-      for (const patchNote of newPatches) {
-        await this.processNewPatch(patchNote);
-      }
-
-      Logger.info('✅ 改良版パッチチェック完了');
-      
-    } catch (error) {
-      await this.handleError(error, '改良版パッチノートチェック処理');
-    }
-  }
 
   /**
-   * 個別の新しいパッチを処理
-   */
-  private async processNewPatch(patchNote: any): Promise<void> {
-    try {
-      Logger.info(`📋 新しいパッチを処理中: ${patchNote.title} (v${patchNote.version})`);
-
-      // 既に通知済みかチェック
-      const isAlreadyNotified = await this.stateManager.isAlreadyNotified(patchNote);
-      
-      if (isAlreadyNotified) {
-        Logger.info(`✅ パッチ ${patchNote.version} は既に通知済みです`);
-        return;
-      }
-
-      // 画像をダウンロード（存在する場合）
-      let localImagePath: string | undefined;
-      if (patchNote.imageUrl) {
-        try {
-          localImagePath = await this.imageDownloader.downloadPatchImage(
-            patchNote.imageUrl,
-            patchNote.version
-          );
-          patchNote.localImagePath = localImagePath;
-          Logger.info(`🖼️ パッチ画像をダウンロード: ${localImagePath}`);
-        } catch (imageError) {
-          Logger.warn('⚠️ パッチ画像のダウンロードに失敗しましたが、通知は継続します', imageError);
-        }
-      }
-
-      // Discordに通知を送信
-      await this.discordNotifier.sendPatchNotification(patchNote, localImagePath);
-      Logger.info(`🚀 パッチ ${patchNote.version} のDiscord通知を送信しました`);
-
-      // 状態を更新（通知完了として記録）
-      await this.stateManager.markNotificationSent(patchNote);
-      
-      // パッチ詳細データを保存
-      await this.stateManager.savePatchDetails(patchNote);
-
-      Logger.info(`✅ パッチ ${patchNote.version} の処理が完了しました`);
-      
-    } catch (error) {
-      Logger.error(`❌ パッチ ${patchNote.version} の処理中にエラー:`, error);
-    }
-  }
-
-  /**
-   * パッチノート監視の実行（レガシー・互換用）
+   * パッチノート監視の実行
    */
   public async checkForPatches(): Promise<void> {
     try {
@@ -323,14 +237,7 @@ export class App {
   public async executeManualCheck(): Promise<void> {
     try {
       Logger.info('🖱️ 手動パッチチェックを実行中...');
-      
-      const useAdvancedDetection = process.env.USE_ADVANCED_PATCH_DETECTION === 'true';
-      
-      if (useAdvancedDetection) {
-        await this.scheduler.executeManually(() => this.checkForPatchesAdvanced());
-      } else {
-        await this.scheduler.executeManually(() => this.checkForPatches());
-      }
+      await this.scheduler.executeManually(() => this.checkForPatches());
     } catch (error) {
       Logger.error('❌ 手動パッチチェックに失敗しました', error);
       throw error;

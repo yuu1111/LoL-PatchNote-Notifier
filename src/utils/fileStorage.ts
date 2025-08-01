@@ -50,7 +50,7 @@ export class FileStorage {
         Logger.debug(`File not found: ${filePath}`);
         return null;
       }
-      
+
       const message = `Failed to read JSON from ${filePath}`;
       Logger.error(message, error);
       throw new AppError(message, 'FILE_READ_ERROR');
@@ -63,10 +63,10 @@ export class FileStorage {
   public static async writeJson(filePath: string, data: unknown): Promise<void> {
     try {
       await this.ensureDirectory(filePath);
-      
+
       const jsonString = JSON.stringify(data, null, 2);
       await fs.writeFile(filePath, jsonString, 'utf-8');
-      
+
       Logger.debug(`Successfully wrote JSON to: ${filePath}`);
     } catch (error) {
       const message = `Failed to write JSON to ${filePath}`;

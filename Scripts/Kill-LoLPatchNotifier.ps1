@@ -17,18 +17,18 @@ $lolPatchNotifierProcesses = @()
 
 foreach ($process in $nodeProcesses) {
     $cmdLine = $process.CommandLine
-    
+
     # LoLPatchNotifier関連の条件をチェック
     $isLoLPatchNotifier = $false
-    
-    if ($cmdLine -match "lol-patch-notifier|LoL-Patch-Notifier" -or 
+
+    if ($cmdLine -match "lol-patch-notifier|LoL-Patch-Notifier" -or
         $cmdLine -match "npm run dev" -and $cmdLine -match [regex]::Escape($currentDir) -or
         $cmdLine -match "tsx watch" -and $cmdLine -match [regex]::Escape($currentDir) -or
         $cmdLine -match "patch.*notifier" -and $cmdLine -match [regex]::Escape($currentDir) -or
         $cmdLine -match "app\.ts" -and $cmdLine -match [regex]::Escape($currentDir)) {
         $isLoLPatchNotifier = $true
     }
-    
+
     if ($isLoLPatchNotifier) {
         $lolPatchNotifierProcesses += $process
         Write-Host "`nLoL Patch Notifier関連プロセス発見:" -ForegroundColor Green
@@ -43,9 +43,9 @@ if ($lolPatchNotifierProcesses.Count -eq 0) {
     Write-Host "Get-Process node | Where-Object { `$_.ProcessName -eq 'node' }" -ForegroundColor Cyan
 } else {
     Write-Host "`n$($lolPatchNotifierProcesses.Count) 個のLoL Patch Notifier関連プロセスが見つかりました。" -ForegroundColor Yellow
-    
+
     $confirm = Read-Host "`nこれらのプロセスを終了しますか? (y/n)"
-    
+
     if ($confirm -eq "y" -or $confirm -eq "Y") {
         foreach ($process in $lolPatchNotifierProcesses) {
             try {
@@ -57,13 +57,13 @@ if ($lolPatchNotifierProcesses.Count -eq 0) {
                 Write-Host "プロセス $($process.ProcessId) の終了に失敗しました: $($_.Exception.Message)" -ForegroundColor Red
             }
         }
-        
+
         # 少し待機してから状態を確認
         Start-Sleep -Seconds 2
-        
+
         # ログファイルやロックファイルなどの追加クリーンアップ（必要に応じて）
         Write-Host "`n追加のクリーンアップを実行中..." -ForegroundColor Yellow
-        
+
         # patches/last_patch_status.json の実行状態を停止に変更
         $statusFile = Join-Path $currentDir "patches\last_patch_status.json"
         if (Test-Path $statusFile) {
@@ -77,7 +77,7 @@ if ($lolPatchNotifierProcesses.Count -eq 0) {
                 Write-Host "状態ファイルの更新に失敗しました: $($_.Exception.Message)" -ForegroundColor Yellow
             }
         }
-        
+
     } else {
         Write-Host "プロセス終了をキャンセルしました。" -ForegroundColor Yellow
     }

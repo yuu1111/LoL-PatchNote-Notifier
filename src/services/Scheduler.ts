@@ -30,7 +30,7 @@ export class Scheduler {
 
       // 間隔をミリ秒に変換
       const intervalMs = this.intervalMinutes * 60 * 1000;
-      
+
       Logger.info(`⏰ スケジューラーを開始: ${this.intervalMinutes}分間隔 (${intervalMs}ms)`);
 
       this.intervalId = setInterval(async () => {
@@ -43,7 +43,7 @@ export class Scheduler {
 
       // 起動時に即座に一回実行
       this.executeInitialRun(callback);
-      
+
     } catch (error) {
       const message = 'スケジューラーの開始に失敗しました';
       Logger.error(message, error);
@@ -65,7 +65,7 @@ export class Scheduler {
 
       Logger.info('🛑 スケジューラーが停止されました');
       Logger.info(`📊 実行統計: 総実行回数=${this.totalExecutions}, 最終実行=${this.lastExecutionTime?.toLocaleString('ja-JP') || 'なし'}`);
-      
+
     } catch (error) {
       Logger.error('スケジューラーの停止中にエラーが発生しました', error);
     }
@@ -76,22 +76,22 @@ export class Scheduler {
    */
   private async executeTask(callback: () => Promise<void>): Promise<void> {
     const startTime = new Date();
-    
+
     try {
       Logger.info(`🔄 定期タスクを実行中... (実行回数: ${this.totalExecutions + 1})`);
-      
+
       await callback();
-      
+
       this.lastExecutionTime = startTime;
       this.totalExecutions += 1;
-      
+
       const duration = Date.now() - startTime.getTime();
       Logger.info(`✅ 定期タスクが完了しました (実行時間: ${duration}ms)`);
-      
+
     } catch (error) {
       const duration = Date.now() - startTime.getTime();
       Logger.error(`❌ 定期タスク実行中にエラーが発生しました (実行時間: ${duration}ms)`, error);
-      
+
       // エラーが発生してもスケジューラーは継続
     }
   }
@@ -102,12 +102,12 @@ export class Scheduler {
   private async executeInitialRun(callback: () => Promise<void>): Promise<void> {
     try {
       Logger.info('🚀 システム起動時の初回チェックを実行中...');
-      
+
       // 少し待ってから実行（システムの初期化を待つ）
       setTimeout(async () => {
         await this.executeTask(callback);
       }, 5000); // 5秒後に実行
-      
+
     } catch (error) {
       Logger.error('初回実行中にエラーが発生しました', error);
     }

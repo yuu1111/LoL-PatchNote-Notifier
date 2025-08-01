@@ -11,7 +11,7 @@ import { AppConfig } from '../types';
 function validateEnvironment(): void {
   const required = ['DISCORD_WEBHOOK_URL'];
   const missing = required.filter(key => !process.env[key]);
-  
+
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
@@ -28,7 +28,7 @@ export function loadConfig(): AppConfig {
       webhookUrl: process.env.DISCORD_WEBHOOK_URL!,
     },
     lol: {
-      patchNotesUrl: process.env.LOL_PATCH_NOTES_URL || 
+      patchNotesUrl: process.env.LOL_PATCH_NOTES_URL ||
         'https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes',
     },
     monitoring: {

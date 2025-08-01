@@ -17,10 +17,10 @@ class RateLimiter {
   public canMakeRequest(): boolean {
     const now = Date.now();
     const windowStart = now - config.rateLimit.windowMs;
-    
+
     // Remove old requests outside the window
     this.requests = this.requests.filter(time => time > windowStart);
-    
+
     // Check if we can make another request
     return this.requests.length < config.rateLimit.maxRequestsPerHour;
   }
@@ -62,8 +62,8 @@ export class HttpClient {
    * Make HTTP POST request with retry logic
    */
   public async post<T = unknown>(
-    url: string, 
-    data?: unknown, 
+    url: string,
+    data?: unknown,
     options?: AxiosRequestConfig
   ): Promise<HttpResponse<T>> {
     return this.makeRequest<T>('POST', url, { ...options, data });
@@ -85,9 +85,9 @@ export class HttpClient {
     for (let attempt = 1; attempt <= config.http.maxRetries; attempt++) {
       try {
         Logger.debug(`Making ${method} request to ${url} (attempt ${attempt})`);
-        
+
         this.rateLimiter.recordRequest();
-        
+
         const response: AxiosResponse<T> = await this.axiosInstance.request({
           method,
           url,

@@ -12,14 +12,14 @@ import path from 'path';
 function createLogger(): winston.Logger {
   // Import config here to avoid circular dependency and timing issues
   const { config } = require('../config');
-  
+
   const logFormat = winston.format.combine(
     winston.format.timestamp({ format: 'HH:mm:ss' }),
     winston.format.errors({ stack: true }),
     winston.format.printf(({ timestamp, level, message, stack }) => {
       const levelMap: Record<string, string> = {
         'error': 'ERR',
-        'warn': 'WRN', 
+        'warn': 'WRN',
         'info': 'INF',
         'debug': 'DBG'
       };
@@ -39,7 +39,7 @@ function createLogger(): winston.Logger {
 
   // Add file transport if configured
   if (config.logging.filePath) {    const logDir = path.dirname(config.logging.filePath);
-    
+
     transports.push(
       new winston.transports.File({
         filename: config.logging.filePath,

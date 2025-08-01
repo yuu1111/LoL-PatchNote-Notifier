@@ -91,7 +91,7 @@ Required environment variables in `.env`:
 ### HTML Scraping Strategy
 The system uses multiple fallback CSS selectors to handle website structure changes:
 1. Data attributes (most stable)
-2. Class names (moderately stable) 
+2. Class names (moderately stable)
 3. Element structure (least stable)
 
 ### Testing Approach
