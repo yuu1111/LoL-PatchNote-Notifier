@@ -68,7 +68,7 @@ jobs:
         # 本番用 package.json を調整（devDependencies を除去）
         cd release
         npm pkg delete devDependencies
-        npm pkg set scripts.postinstall=""
+        npm pkg delete scripts.postinstall
         
         # アーカイブを作成
         cd ..
