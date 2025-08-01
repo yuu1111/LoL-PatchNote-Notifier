@@ -1,6 +1,6 @@
 {
   "name": "lol-patch-notifier",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "League of Legends Patch Notifier - Automatically monitors LoL patch notes and sends Discord notifications",
   "main": "dist/app.js",
   "scripts": {
