@@ -28,7 +28,8 @@ export function loadConfig(): AppConfig {
       webhookUrl: process.env.DISCORD_WEBHOOK_URL!,
     },
     lol: {
-      patchNotesUrl: process.env.LOL_PATCH_NOTES_URL ||
+      patchNotesUrl:
+        process.env.LOL_PATCH_NOTES_URL ||
         'https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes',
     },
     gemini: {
@@ -41,7 +42,8 @@ export function loadConfig(): AppConfig {
     },
     monitoring: {
       checkIntervalMinutes: parseInt(process.env.CHECK_INTERVAL_MINUTES || '90', 10),
-    },    logging: {
+    },
+    logging: {
       level: process.env.LOG_LEVEL || 'info',
       filePath: `logs/${new Date().toISOString().slice(0, 16).replace('T', '-').replace(':', '-')}`,
     },
@@ -73,5 +75,5 @@ export const config = new Proxy({} as AppConfig, {
       _config = loadConfig();
     }
     return _config[prop as keyof AppConfig];
-  }
+  },
 });

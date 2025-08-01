@@ -43,13 +43,12 @@ export class Scheduler {
 
       // 起動時に即座に一回実行
       this.executeInitialRun(callback);
-
     } catch (error) {
       const message = 'スケジューラーの開始に失敗しました';
       Logger.error(message, error);
       throw new AppError(message, 'SCHEDULER_START_ERROR');
     }
-  }  /**
+  } /**
    * スケジューラーを停止
    */
   public stop(): void {
@@ -64,8 +63,9 @@ export class Scheduler {
       this.isRunning = false;
 
       Logger.info('🛑 スケジューラーが停止されました');
-      Logger.info(`📊 実行統計: 総実行回数=${this.totalExecutions}, 最終実行=${this.lastExecutionTime?.toLocaleString('ja-JP') || 'なし'}`);
-
+      Logger.info(
+        `📊 実行統計: 総実行回数=${this.totalExecutions}, 最終実行=${this.lastExecutionTime?.toLocaleString('ja-JP') || 'なし'}`
+      );
     } catch (error) {
       Logger.error('スケジューラーの停止中にエラーが発生しました', error);
     }
@@ -87,7 +87,6 @@ export class Scheduler {
 
       const duration = Date.now() - startTime.getTime();
       Logger.info(`✅ 定期タスクが完了しました (実行時間: ${duration}ms)`);
-
     } catch (error) {
       const duration = Date.now() - startTime.getTime();
       Logger.error(`❌ 定期タスク実行中にエラーが発生しました (実行時間: ${duration}ms)`, error);
@@ -107,11 +106,10 @@ export class Scheduler {
       setTimeout(async () => {
         await this.executeTask(callback);
       }, 5000); // 5秒後に実行
-
     } catch (error) {
       Logger.error('初回実行中にエラーが発生しました', error);
     }
-  }  /**
+  } /**
    * スケジューラーの状態を取得
    */
   public getStatus(): {
@@ -123,7 +121,9 @@ export class Scheduler {
   } {
     let nextExecutionTime = null;
     if (this.isRunning && this.lastExecutionTime) {
-      nextExecutionTime = new Date(this.lastExecutionTime.getTime() + (this.intervalMinutes * 60 * 1000));
+      nextExecutionTime = new Date(
+        this.lastExecutionTime.getTime() + this.intervalMinutes * 60 * 1000
+      );
     }
 
     return {

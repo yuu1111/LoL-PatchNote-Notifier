@@ -38,7 +38,9 @@ export class StateManager {
         }
 
         this.currentState = state;
-        Logger.info(`状態を正常に読み込み: 最終チェック=${state.lastCheckedPatch?.version || 'なし'}`);
+        Logger.info(
+          `状態を正常に読み込み: 最終チェック=${state.lastCheckedPatch?.version || 'なし'}`
+        );
         return state;
       }
 
@@ -50,8 +52,8 @@ export class StateManager {
 
       this.currentState = initialState;
       await this.saveState(initialState);
-      Logger.info('初期状態を作成しました');      return initialState;
-
+      Logger.info('初期状態を作成しました');
+      return initialState;
     } catch (error) {
       const message = '状態の読み込みに失敗しました';
       Logger.error(message, error);
@@ -70,7 +72,6 @@ export class StateManager {
       this.currentState = state;
 
       Logger.debug('状態を正常に保存しました');
-
     } catch (error) {
       const message = '状態の保存に失敗しました';
       Logger.error(message, error);
@@ -95,7 +96,7 @@ export class StateManager {
     Logger.debug(`通知済みチェック: バージョン=${isSameVersion}, URL=${isSameUrl}`);
 
     return isSameVersion && isSameUrl;
-  }  /**
+  } /**
    * パッチノート通知完了後の状態更新
    */
   public async markNotificationSent(patchNote: PatchNote): Promise<void> {
@@ -107,15 +108,16 @@ export class StateManager {
         version: patchNote.version,
         title: patchNote.title,
         url: patchNote.url,
-        publishedAt: patchNote.publishedAt
+        publishedAt: patchNote.publishedAt,
       } as PatchNote;
       state.lastNotificationSent = new Date();
       state.totalNotificationsSent += 1;
 
       await this.saveState(state);
 
-      Logger.info(`通知完了として記録: バージョン=${patchNote.version}, 総通知数=${state.totalNotificationsSent}`);
-
+      Logger.info(
+        `通知完了として記録: バージョン=${patchNote.version}, 総通知数=${state.totalNotificationsSent}`
+      );
     } catch (error) {
       const message = '通知完了状態の更新に失敗しました';
       Logger.error(message, error);
@@ -133,7 +135,6 @@ export class StateManager {
       await this.saveState(state);
 
       Logger.debug(`実行状態を更新: ${isRunning ? '動作中' : '停止中'}`);
-
     } catch (error) {
       Logger.error('実行状態の更新に失敗しました', error);
     }
@@ -163,7 +164,6 @@ export class StateManager {
       await FileStorage.writeJson(jsonFilePath, patchData);
 
       Logger.debug(`パッチ詳細を保存: ${jsonFilePath}`);
-
     } catch (error) {
       Logger.error('パッチ詳細の保存に失敗しました', error);
       // 詳細保存の失敗は致命的ではないので例外を投げない
@@ -180,19 +180,18 @@ export class StateManager {
       const jsonFilePath = path.join(patchDir, `patch_${sanitizedVersion}.json`);
 
       const patchData = await FileStorage.readJson<any>(jsonFilePath);
-      
+
       if (patchData) {
         // 日付文字列を Date オブジェクトに変換
         if (patchData.publishedAt) {
           patchData.publishedAt = new Date(patchData.publishedAt);
         }
-        
+
         Logger.debug(`パッチ詳細を読み込み: ${jsonFilePath}`);
         return patchData as PatchNote;
       }
-      
-      return null;
 
+      return null;
     } catch (error) {
       Logger.warn(`パッチ詳細の読み込みに失敗: ${version}`, error);
       return null;
@@ -205,7 +204,7 @@ export class StateManager {
   public getPatchDirectory(version: string): string {
     const sanitizedVersion = version.replace(/[^a-zA-Z0-9.-]/g, '_');
     return path.join(this.patchesDir, `patch_${sanitizedVersion}`);
-  }  /**
+  } /**
    * 現在の状態を取得（メモリキャッシュから）
    */
   public getCurrentState(): AppState | null {
@@ -235,7 +234,6 @@ export class StateManager {
 
       Logger.debug('状態の健全性チェック完了');
       return true;
-
     } catch (error) {
       Logger.error('状態の健全性チェックに失敗しました', error);
       return false;
@@ -269,10 +267,8 @@ export class StateManager {
 
       await FileStorage.writeJson(backupPath, this.currentState);
       Logger.debug(`状態バックアップを作成: ${backupPath}`);
-
     } catch (error) {
       Logger.error('状態バックアップの作成に失敗しました', error);
     }
   }
-
 }

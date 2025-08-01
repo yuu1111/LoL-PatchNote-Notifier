@@ -8,7 +8,13 @@ import FormData from 'form-data';
 import { httpClient } from '../utils/httpClient';
 import { Logger } from '../utils/logger';
 import { config } from '../config';
-import { PatchNote, DiscordWebhookPayload, DiscordEmbed, DiscordError, GeminiSummary } from '../types';
+import {
+  PatchNote,
+  DiscordWebhookPayload,
+  DiscordEmbed,
+  DiscordError,
+  GeminiSummary,
+} from '../types';
 
 export class DiscordNotifier {
   private readonly webhookUrl: string;
@@ -20,7 +26,11 @@ export class DiscordNotifier {
   /**
    * Send patch notification to Discord (エンベッド内画像表示)
    */
-  public async sendPatchNotification(patchNote: PatchNote, localImagePath?: string, summary?: GeminiSummary): Promise<void> {
+  public async sendPatchNotification(
+    patchNote: PatchNote,
+    localImagePath?: string,
+    summary?: GeminiSummary
+  ): Promise<void> {
     try {
       Logger.info(`Sending Discord notification for patch: ${patchNote.title}`);
 
@@ -28,7 +38,6 @@ export class DiscordNotifier {
       await this.sendEmbedWithImage(patchNote, localImagePath, summary);
 
       Logger.info(`✅ Discord通知が完了しました: ${patchNote.version}`);
-
     } catch (error) {
       const message = `Failed to send Discord notification for patch ${patchNote.version}`;
       Logger.error(message, error);
@@ -44,7 +53,11 @@ export class DiscordNotifier {
   /**
    * エンベッド内に画像を含めて送信
    */
-  private async sendEmbedWithImage(patchNote: PatchNote, localImagePath?: string, summary?: GeminiSummary): Promise<void> {
+  private async sendEmbedWithImage(
+    patchNote: PatchNote,
+    localImagePath?: string,
+    summary?: GeminiSummary
+  ): Promise<void> {
     // ローカル画像があれば、一時的にURLとして設定（後でattachment://で参照）
     let imageUrl = patchNote.imageUrl;
     let hasLocalImage = false;
@@ -67,7 +80,7 @@ export class DiscordNotifier {
     }
 
     const embed = this.createPatchEmbed(patchNote, true, summary); // 画像URLと要約を含める
-    
+
     // 元のimageUrlを復元
     if (originalImageUrl !== undefined) {
       patchNote.imageUrl = originalImageUrl;
@@ -81,16 +94,16 @@ export class DiscordNotifier {
     if (hasLocalImage && localImagePath) {
       // 添付ファイル付きで送信
       const formData = new FormData();
-      
+
       // JSONペイロードをフォームデータに追加
       formData.append('payload_json', JSON.stringify(payload));
-      
+
       // 画像ファイルを添付
       const imageBuffer = await fs.readFile(localImagePath);
       const filename = `patch_${patchNote.version}.jpg`;
       formData.append('files[0]', imageBuffer, {
         filename,
-        contentType: 'image/jpeg'
+        contentType: 'image/jpeg',
       });
 
       const response = await httpClient.post(this.webhookUrl, formData, {
@@ -113,18 +126,24 @@ export class DiscordNotifier {
       });
 
       if (response.status < 200 || response.status >= 300) {
-        throw new DiscordError(`Discord embed message failed: HTTP ${response.status}`, response.status);
+        throw new DiscordError(
+          `Discord embed message failed: HTTP ${response.status}`,
+          response.status
+        );
       }
 
       Logger.info(`📋 エンベッドメッセージを送信完了`);
     }
   }
 
-
   /**
    * Create Discord embed for patch note
    */
-  private createPatchEmbed(patchNote: PatchNote, includeImage: boolean = true, summary?: GeminiSummary): DiscordEmbed {
+  private createPatchEmbed(
+    patchNote: PatchNote,
+    includeImage: boolean = true,
+    summary?: GeminiSummary
+  ): DiscordEmbed {
     const fields = [
       {
         name: '📋 バージョン',
@@ -144,16 +163,21 @@ export class DiscordNotifier {
       if (summary.summary) {
         fields.push({
           name: '📝 AI要約',
-          value: summary.summary.length > 1024 ? summary.summary.substring(0, 1021) + '...' : summary.summary,
+          value:
+            summary.summary.length > 1024
+              ? summary.summary.substring(0, 1021) + '...'
+              : summary.summary,
           inline: false,
         });
       }
 
       // 主要な変更点を追加（最大5つまで）
       if (summary.keyChanges && summary.keyChanges.length > 0) {
-        const changes = summary.keyChanges.slice(0, 5).map((change, index) => `${index + 1}. ${change}`);
+        const changes = summary.keyChanges
+          .slice(0, 5)
+          .map((change, index) => `${index + 1}. ${change}`);
         const changesText = changes.join('\n');
-        
+
         fields.push({
           name: '🎯 主要な変更点',
           value: changesText.length > 1024 ? changesText.substring(0, 1021) + '...' : changesText,
@@ -175,7 +199,9 @@ export class DiscordNotifier {
       color: summary ? 0x00ff99 : 0x0099ff, // 要約がある場合は緑系、ない場合は青系
       timestamp: patchNote.publishedAt.toISOString(),
       footer: {
-        text: summary ? 'League of Legends Patch Notifier | AI要約付き' : 'League of Legends Patch Notifier',
+        text: summary
+          ? 'League of Legends Patch Notifier | AI要約付き'
+          : 'League of Legends Patch Notifier',
       },
       fields,
     };
@@ -188,7 +214,7 @@ export class DiscordNotifier {
     }
 
     return embed;
-  }  /**
+  } /**
    * Send a test notification to verify webhook configuration
    */
   public async sendTestNotification(): Promise<void> {
@@ -217,11 +243,13 @@ export class DiscordNotifier {
       });
 
       if (response.status < 200 || response.status >= 300) {
-        throw new DiscordError(`Test notification failed: HTTP ${response.status}`, response.status);
+        throw new DiscordError(
+          `Test notification failed: HTTP ${response.status}`,
+          response.status
+        );
       }
 
       Logger.info('Test Discord notification sent successfully');
-
     } catch (error) {
       const message = 'Failed to send test Discord notification';
       Logger.error(message, error);
@@ -275,7 +303,6 @@ export class DiscordNotifier {
       });
 
       Logger.debug('Error notification sent to Discord');
-
     } catch (notificationError) {
       // Don't throw here to avoid recursive errors
       Logger.error('Failed to send error notification to Discord', notificationError);

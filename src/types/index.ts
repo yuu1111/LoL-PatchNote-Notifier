@@ -41,7 +41,7 @@ export interface DiscordEmbed {
 export interface DiscordWebhookPayload {
   content?: string;
   embeds?: DiscordEmbed[];
-}// Application State Management
+} // Application State Management
 export interface AppState {
   lastCheckedPatch?: PatchNote;
   lastNotificationSent?: Date;

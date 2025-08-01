@@ -18,12 +18,12 @@ import { AppError, NetworkError, ScrapingError, DiscordError } from './types';
  * メインアプリケーションクラス
  */
 export class App {
-  private patchScraper: PatchScraper;
-  private discordNotifier: DiscordNotifier;
-  private imageDownloader: ImageDownloader;
-  private geminiSummarizer: GeminiSummarizer;
-  private stateManager: StateManager;
-  private scheduler: Scheduler;
+  private readonly patchScraper: PatchScraper;
+  private readonly discordNotifier: DiscordNotifier;
+  private readonly imageDownloader: ImageDownloader;
+  private readonly geminiSummarizer: GeminiSummarizer;
+  private readonly stateManager: StateManager;
+  private readonly scheduler: Scheduler;
   private isShuttingDown = false;
 
   constructor() {
@@ -53,12 +53,11 @@ export class App {
       Logger.info(`✅ アプリケーションが正常に開始されました`);
       Logger.info(`📋 設定: パッチノートURL=${config.lol.patchNotesUrl}`);
       Logger.info(`🔄 監視間隔: ${config.monitoring.checkIntervalMinutes}分`);
-      
     } catch (error) {
       Logger.error('❌ アプリケーションの開始に失敗しました', error);
       throw error;
     }
-  }  /**
+  } /**
    * アプリケーション停止
    */
   public async stop(): Promise<void> {
@@ -67,26 +66,24 @@ export class App {
     }
 
     this.isShuttingDown = true;
-    
+
     try {
       Logger.info('🛑 LoL Patch Notifier を停止しています...');
-      
+
       // スケジューラーを停止
       this.scheduler.stop();
-      
+
       // 実行状態を停止に更新
       await this.stateManager.setRunningState(false);
-      
+
       // バックアップを作成
       await this.stateManager.createBackup();
-      
+
       Logger.info('✅ アプリケーションが正常に停止しました');
-      
     } catch (error) {
       Logger.error('❌ アプリケーションの停止中にエラーが発生しました', error);
     }
   }
-
 
   /**
    * パッチノート監視の実行
@@ -97,7 +94,7 @@ export class App {
 
       // 最新のパッチノートを取得
       const latestPatch = await this.patchScraper.scrapeLatestPatch();
-      
+
       if (!latestPatch) {
         Logger.info('📝 パッチノートが見つかりませんでした');
         return;
@@ -107,11 +104,11 @@ export class App {
 
       // 既に通知済みかチェック
       const isAlreadyNotified = await this.stateManager.isAlreadyNotified(latestPatch);
-      
+
       if (isAlreadyNotified) {
         Logger.info('✅ このパッチは既に通知済みです');
         return;
-      }      // 画像をダウンロード（存在する場合）
+      } // 画像をダウンロード（存在する場合）
       let localImagePath: string | undefined;
       if (latestPatch.imageUrl) {
         try {
@@ -135,7 +132,7 @@ export class App {
       if (latestPatch.content) {
         try {
           Logger.info('🤖 保存されたパッチデータからGemini AIで要約を生成中...');
-          
+
           // 保存されたJSONファイルからパッチデータを読み込み
           const savedPatch = await this.stateManager.loadPatchDetails(latestPatch.version);
           if (savedPatch) {
@@ -150,21 +147,27 @@ export class App {
             Logger.warn('⚠️ 保存されたパッチデータの読み込みに失敗しました');
           }
         } catch (summaryError) {
-          Logger.warn('⚠️ Gemini要約の生成中にエラーが発生しましたが、通知は継続します', summaryError);
+          Logger.warn(
+            '⚠️ Gemini要約の生成中にエラーが発生しましたが、通知は継続します',
+            summaryError
+          );
         }
       } else {
         Logger.info('ℹ️ パッチのコンテンツが無いため、要約生成をスキップします');
       }
 
       // Discordに通知を送信（要約付き）
-      await this.discordNotifier.sendPatchNotification(latestPatch, localImagePath, summary || undefined);
+      await this.discordNotifier.sendPatchNotification(
+        latestPatch,
+        localImagePath,
+        summary || undefined
+      );
       Logger.info('🚀 Discord通知を送信しました');
 
       // 状態を更新（通知完了として記録）
       await this.stateManager.markNotificationSent(latestPatch);
 
       Logger.info(`✅ パッチ通知処理が完了しました: ${latestPatch.version}`);
-      
     } catch (error) {
       await this.handleError(error, 'パッチノートチェック処理');
     }
@@ -175,7 +178,7 @@ export class App {
    */
   private async handleError(error: unknown, context: string): Promise<void> {
     let errorMessage = `${context}中にエラーが発生しました`;
-    
+
     if (error instanceof ScrapingError) {
       errorMessage = `スクレイピングエラー: ${error.message}`;
       Logger.error(errorMessage, error);
@@ -203,7 +206,7 @@ export class App {
     } catch (notificationError) {
       Logger.error('エラー通知の送信に失敗しました', notificationError);
     }
-  }  /**
+  } /**
    * テスト通知の送信
    */
   public async sendTestNotification(): Promise<void> {
@@ -239,7 +242,6 @@ export class App {
 
       Logger.info('✅ 健全性チェック完了');
       return true;
-      
     } catch (error) {
       Logger.error('❌ 健全性チェック中にエラーが発生しました', error);
       return false;
@@ -278,7 +280,7 @@ export class App {
 // メイン実行部分
 if (require.main === module) {
   const app = new App();
-  
+
   // シグナルハンドラー
   process.on('SIGINT', async () => {
     Logger.info('📡 SIGINT受信 - アプリケーションを終了中...');
@@ -293,7 +295,7 @@ if (require.main === module) {
   });
 
   // 未処理の例外をキャッチ
-  process.on('uncaughtException', async (error) => {
+  process.on('uncaughtException', async error => {
     Logger.error('💥 未処理の例外が発生しました', error);
     await app.stop();
     process.exit(1);
@@ -301,15 +303,18 @@ if (require.main === module) {
 
   process.on('unhandledRejection', (reason, promise) => {
     Logger.error('💥 未処理のPromise拒否が発生しました', { reason, promise });
-    app.stop().then(() => {
-      process.exit(1);
-    }).catch(() => {
-      process.exit(1);
-    });
+    app
+      .stop()
+      .then(() => {
+        process.exit(1);
+      })
+      .catch(() => {
+        process.exit(1);
+      });
   });
 
   // アプリケーション開始
-  app.start().catch(async (error) => {
+  app.start().catch(async error => {
     Logger.error('💥 アプリケーションの開始に失敗しました', error);
     await app.stop();
     process.exit(1);

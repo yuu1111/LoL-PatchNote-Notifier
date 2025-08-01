@@ -45,7 +45,8 @@ export class FileStorage {
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data) as T;
       Logger.debug(`Successfully read JSON from: ${filePath}`);
-      return parsed;    } catch (error) {
+      return parsed;
+    } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         Logger.debug(`File not found: ${filePath}`);
         return null;

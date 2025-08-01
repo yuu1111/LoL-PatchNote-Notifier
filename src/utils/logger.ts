@@ -18,10 +18,10 @@ function createLogger(): winston.Logger {
     winston.format.errors({ stack: true }),
     winston.format.printf(({ timestamp, level, message, stack }) => {
       const levelMap: Record<string, string> = {
-        'error': 'ERR',
-        'warn': 'WRN',
-        'info': 'INF',
-        'debug': 'DBG'
+        error: 'ERR',
+        warn: 'WRN',
+        info: 'INF',
+        debug: 'DBG',
       };
       const shortLevel = levelMap[level] || level.substring(0, 3).toUpperCase();
       return `[${timestamp} ${shortLevel}] ${message}${stack ? '\n' + stack : ''}`;
@@ -30,15 +30,13 @@ function createLogger(): winston.Logger {
 
   const transports: winston.transport[] = [
     new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        logFormat
-      ),
+      format: winston.format.combine(winston.format.colorize(), logFormat),
     }),
   ];
 
   // Add file transport if configured
-  if (config.logging.filePath) {    const logDir = path.dirname(config.logging.filePath);
+  if (config.logging.filePath) {
+    const logDir = path.dirname(config.logging.filePath);
 
     transports.push(
       new winston.transports.File({

@@ -19,14 +19,14 @@ export class GeminiSummarizer {
   constructor() {
     this.maxRetries = config.gemini.maxRetries;
     this.requestTimeout = config.gemini.timeout;
-    
+
     this.genAI = new GoogleGenerativeAI(config.gemini.apiKey);
-    this.model = this.genAI.getGenerativeModel({ 
+    this.model = this.genAI.getGenerativeModel({
       model: config.gemini.model,
       generationConfig: {
         temperature: config.gemini.temperature,
         maxOutputTokens: config.gemini.maxTokens,
-      }
+      },
     });
   }
 
@@ -49,24 +49,25 @@ export class GeminiSummarizer {
       }
 
       Logger.info(`Gemini APIでパッチノート要約を生成中: ${patchNote.version}`);
-      Logger.info(`⏳ 要約生成開始 - 最大${this.requestTimeout}ms, 最大${this.maxRetries}回リトライ`);
+      Logger.info(
+        `⏳ 要約生成開始 - 最大${this.requestTimeout}ms, 最大${this.maxRetries}回リトライ`
+      );
 
       const prompt = this.createSummaryPrompt(patchNote);
       const startTime = Date.now();
       const text = await this.generateContentWithRetry(prompt, patchNote.version);
       const duration = Date.now() - startTime;
-      
+
       Logger.info(`⚡ 要約生成完了 - 処理時間: ${duration}ms`);
 
       // レスポンスを解析
       const summary = this.parseSummaryResponse(text, patchNote.version);
-      
+
       // 要約をキャッシュに保存
       await this.cacheSummary(summary);
 
       Logger.info(`パッチノート要約を生成完了: ${patchNote.version}`);
       return summary;
-
     } catch (error) {
       Logger.error(`Gemini要約生成エラー (${patchNote.version}):`, error);
       return null;
@@ -78,31 +79,32 @@ export class GeminiSummarizer {
    */
   private async generateContentWithRetry(prompt: string, version: string): Promise<string> {
     let lastError: Error | null = null;
-    
+
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
         Logger.info(`Gemini API呼び出し試行 ${attempt}/${this.maxRetries} (${version})`);
-        
+
         // タイムアウト付きでAPI呼び出し
         const result = await Promise.race([
           this.model.generateContent(prompt),
-          this.createTimeoutPromise()
+          this.createTimeoutPromise(),
         ]);
-        
+
         const response = await result.response;
         const text = response.text();
-        
+
         if (!text || text.trim().length === 0) {
           throw new Error('Gemini APIから空のレスポンスが返されました');
         }
-        
+
         Logger.info(`Gemini API呼び出し成功 (${version}): ${text.length}文字`);
         return text;
-        
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        Logger.warn(`Gemini API呼び出し失敗 試行${attempt}/${this.maxRetries} (${version}): ${lastError.message}`);
-        
+        Logger.warn(
+          `Gemini API呼び出し失敗 試行${attempt}/${this.maxRetries} (${version}): ${lastError.message}`
+        );
+
         // 最後の試行でない場合は待機
         if (attempt < this.maxRetries) {
           const waitTime = Math.pow(2, attempt) * 1000; // 指数バックオフ (2s, 4s, 8s)
@@ -111,9 +113,11 @@ export class GeminiSummarizer {
         }
       }
     }
-    
+
     // 全ての試行が失敗した場合
-    throw new Error(`Gemini API呼び出しが${this.maxRetries}回とも失敗しました: ${lastError?.message}`);
+    throw new Error(
+      `Gemini API呼び出しが${this.maxRetries}回とも失敗しました: ${lastError?.message}`
+    );
   }
 
   /**
@@ -200,10 +204,9 @@ ${patchNote.content}
         generatedAt: new Date(),
         model: config.gemini.model,
       };
-      
     } catch (error) {
       Logger.warn(`Geminiレスポンスの解析に失敗、フォールバック処理実行: ${error}`);
-      
+
       // パースに失敗した場合のフォールバック
       return {
         version,
@@ -221,21 +224,21 @@ ${patchNote.content}
   async getCachedSummary(version: string): Promise<GeminiSummary | null> {
     try {
       const summaryPath = this.getSummaryFilePath(version);
-      
-      if (!await FileStorage.exists(summaryPath)) {
+
+      if (!(await FileStorage.exists(summaryPath))) {
         return null;
       }
 
       const cachedData = await FileStorage.readJson<GeminiSummary>(summaryPath);
-      
+
       if (!cachedData) {
         return null;
       }
-      
+
       // キャッシュの有効性を確認（7日間有効）
       const cacheAge = Date.now() - new Date(cachedData.generatedAt).getTime();
       const maxAge = 7 * 24 * 60 * 60 * 1000; // 7日間
-      
+
       if (cacheAge > maxAge) {
         Logger.info(`キャッシュが期限切れです: ${version}`);
         return null;
@@ -255,10 +258,10 @@ ${patchNote.content}
     try {
       const summaryPath = this.getSummaryFilePath(summary.version);
       const summaryDir = path.dirname(summaryPath);
-      
+
       // パッチディレクトリを確実に作成
       await FileStorage.ensureDirectoryPath(summaryDir);
-      
+
       await FileStorage.writeJson(summaryPath, summary);
       Logger.info(`要約をキャッシュに保存: ${summaryPath}`);
     } catch (error) {

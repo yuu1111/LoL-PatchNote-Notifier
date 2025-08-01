@@ -34,18 +34,19 @@ class RateLimiter {
  * HTTP Client class with built-in retry and rate limiting
  */
 export class HttpClient {
-  private axiosInstance: AxiosInstance;  private rateLimiter = new RateLimiter();
+  private axiosInstance: AxiosInstance;
+  private rateLimiter = new RateLimiter();
 
   constructor() {
     this.axiosInstance = axios.create({
       timeout: config.http.timeout,
       headers: {
         'User-Agent': 'LoL-Patch-Notifier/1.0.0',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'ja,en-US;q=0.5',
         'Accept-Encoding': 'gzip, deflate',
-        'DNT': '1',
-        'Connection': 'keep-alive',
+        DNT: '1',
+        Connection: 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
       },
     });
@@ -54,7 +55,10 @@ export class HttpClient {
   /**
    * Make HTTP GET request with retry logic
    */
-  public async get<T = string>(url: string, options?: AxiosRequestConfig): Promise<HttpResponse<T>> {
+  public async get<T = string>(
+    url: string,
+    options?: AxiosRequestConfig
+  ): Promise<HttpResponse<T>> {
     return this.makeRequest<T>('GET', url, options);
   }
 
@@ -67,7 +71,7 @@ export class HttpClient {
     options?: AxiosRequestConfig
   ): Promise<HttpResponse<T>> {
     return this.makeRequest<T>('POST', url, { ...options, data });
-  }  /**
+  } /**
    * Make HTTP request with retry logic and rate limiting
    */
   private async makeRequest<T>(
@@ -104,7 +108,9 @@ export class HttpClient {
         };
       } catch (error) {
         lastError = error as Error;
-        Logger.warn(`${method} request to ${url} failed (attempt ${attempt}): ${lastError.message}`);
+        Logger.warn(
+          `${method} request to ${url} failed (attempt ${attempt}): ${lastError.message}`
+        );
 
         if (attempt < config.http.maxRetries) {
           const delay = config.http.retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
@@ -116,7 +122,10 @@ export class HttpClient {
 
     const errorMessage = `Failed to ${method} ${url} after ${config.http.maxRetries} attempts`;
     Logger.error(errorMessage, lastError);
-    throw new NetworkError(errorMessage, axios.isAxiosError(lastError) ? lastError.response?.status : undefined);
+    throw new NetworkError(
+      errorMessage,
+      axios.isAxiosError(lastError) ? lastError.response?.status : undefined
+    );
   }
 
   /**

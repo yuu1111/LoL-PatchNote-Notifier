@@ -40,23 +40,27 @@ export class ImageDownloader {
       if (await FileStorage.exists(localPath)) {
         Logger.debug(`Image already cached: ${localPath}`);
         return localPath;
-      }      // Download image
+      } // Download image
       const response = await httpClient.get<Buffer>(imageUrl, {
         responseType: 'arraybuffer',
         headers: {
-          'Accept': 'image/*,*/*;q=0.8',
+          Accept: 'image/*,*/*;q=0.8',
         },
       });
 
       // Validate response
       if (!response.data || response.status !== 200) {
-        throw new NetworkError(`Failed to download image: HTTP ${response.status}`, response.status);
+        throw new NetworkError(
+          `Failed to download image: HTTP ${response.status}`,
+          response.status
+        );
       }
 
       // Convert ArrayBuffer to Buffer if needed
-      const imageBuffer = response.data instanceof ArrayBuffer
-        ? Buffer.from(response.data)
-        : response.data as Buffer;
+      const imageBuffer =
+        response.data instanceof ArrayBuffer
+          ? Buffer.from(response.data)
+          : (response.data as Buffer);
 
       // Validate image data
       if (imageBuffer.length === 0) {
@@ -68,7 +72,6 @@ export class ImageDownloader {
 
       Logger.info(`Successfully downloaded and cached image: ${localPath}`);
       return localPath;
-
     } catch (error) {
       const message = `Failed to download patch image from ${imageUrl}`;
       Logger.error(message, error);
@@ -79,7 +82,7 @@ export class ImageDownloader {
 
       throw new AppError(message, 'IMAGE_DOWNLOAD_ERROR');
     }
-  }  /**
+  } /**
    * Generate a unique filename for the image
    */
   private generateImageFilename(imageUrl: string, patchVersion: string): string {

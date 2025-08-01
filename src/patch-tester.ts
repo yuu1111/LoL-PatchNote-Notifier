@@ -61,7 +61,7 @@ class PatchTester {
         publishedAt: new Date(),
         ...(detailedInfo.content && { content: detailedInfo.content }),
         ...(detailedInfo.imageUrl && { imageUrl: detailedInfo.imageUrl }),
-        ...(localImagePath && { localImagePath })
+        ...(localImagePath && { localImagePath }),
       };
 
       Logger.info(`✅ パッチデータ取得成功:`);
@@ -79,7 +79,6 @@ class PatchTester {
       }
 
       Logger.info(`🎯 パッチ ${version} のテスト完了`);
-
     } catch (error) {
       Logger.error(`❌ パッチ ${version} のテスト中にエラー:`, error);
     }
@@ -119,7 +118,6 @@ class PatchTester {
 
       Logger.info(`📋 検出されたパッチバージョン: ${versions.join(', ')}`);
       return versions;
-
     } catch (error) {
       Logger.error('❌ パッチ検出中にエラー:', error);
       return [];
@@ -167,7 +165,9 @@ class PatchTester {
         const patchData = JSON.parse(jsonContent);
         Logger.info(`✅ JSONファイル確認成功:`);
         Logger.info(`   • タイトル: ${patchData.title}`);
-        Logger.info(`   • 本文長: ${patchData.content ? `${patchData.content.length}文字` : 'なし'}`);
+        Logger.info(
+          `   • 本文長: ${patchData.content ? `${patchData.content.length}文字` : 'なし'}`
+        );
         Logger.info(`   • 画像URL: ${patchData.imageUrl ? 'あり' : 'なし'}`);
       } catch (jsonError) {
         Logger.error(`❌ JSONファイル読み込み失敗: ${jsonError}`);
@@ -180,7 +180,6 @@ class PatchTester {
       } catch (imageError) {
         Logger.warn(`⚠️ 画像ファイルが見つかりません: ${imageFile}`);
       }
-
     } catch (error) {
       Logger.error(`❌ 保存データ確認中にエラー:`, error);
     }
