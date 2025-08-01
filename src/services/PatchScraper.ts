@@ -225,7 +225,9 @@ export class PatchScraper {
         throw new ScrapingError('Could not find patch note container');
       }
 
-      Logger.debug(`Found patch element with tag: ${patchElement.length > 0 ? patchElement.prop('tagName') ?? 'unknown' : 'none'}`);
+      Logger.debug(
+        `Found patch element with tag: ${patchElement.length > 0 ? (patchElement.prop('tagName') ?? 'unknown') : 'none'}`
+      );
       Logger.debug(`Patch element classes: ${patchElement.attr('class')}`);
       Logger.debug(`Patch element children: ${patchElement.children().length}`);
       Logger.debug(`Patch element href: ${patchElement.attr('href')}`);
@@ -293,7 +295,8 @@ export class PatchScraper {
   } /**
    * Find element using fallback selectors
    */
-  private findElement($: cheerio.CheerioAPI, selectors: string[]): cheerio.Cheerio<cheerio.Element> | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private findElement($: cheerio.CheerioAPI, selectors: string[]): cheerio.Cheerio<any> | null {
     for (const selector of selectors) {
       try {
         const elements = $(selector);
@@ -312,7 +315,11 @@ export class PatchScraper {
   /**
    * Extract patch note title
    */
-  private extractTitle($: cheerio.CheerioAPI, container: cheerio.Cheerio<cheerio.Element>): string | null {
+  private extractTitle(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    container: cheerio.Cheerio<any>
+  ): string | null {
     // First try within the container
     for (const selector of this.selectors.title) {
       const titleElement = container.find(selector).first();
@@ -363,7 +370,11 @@ export class PatchScraper {
   } /**
    * Extract patch note URL
    */
-  private extractUrl($: cheerio.CheerioAPI, container: cheerio.Cheerio<cheerio.Element>): string | null {
+  private extractUrl(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    container: cheerio.Cheerio<any>
+  ): string | null {
     // Check if container itself is an <a> tag
     if (container.is('a')) {
       const href = container.attr('href');
@@ -406,7 +417,11 @@ export class PatchScraper {
   /**
    * Extract patch note image URL
    */
-  private extractImageUrl($: cheerio.CheerioAPI, container: cheerio.Cheerio<cheerio.Element>): string | null {
+  private extractImageUrl(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    container: cheerio.Cheerio<any>
+  ): string | null {
     Logger.debug('Searching for images in container...');
 
     // First try within the container

@@ -21,39 +21,42 @@ module.exports = {
   },
   ignorePatterns: ['.eslintrc.js', 'dist/', 'node_modules/', '*.js', 'tests/'],
   rules: {
-    // TypeScript specific rules - v1.0.0用設定（段階的改善）
-    '@typescript-eslint/no-explicit-any': 'warn', // TODO: errorに戻す
+    // TypeScript specific rules - 厳格化設定
+    '@typescript-eslint/no-explicit-any': ['error', {
+      ignoreRestArgs: false,
+      fixToUnknown: false
+    }],
     '@typescript-eslint/no-unused-vars': ['error', { 
       argsIgnorePattern: '^_',
       varsIgnorePattern: '^_',
       ignoreRestSiblings: true
     }],
-    '@typescript-eslint/explicit-function-return-type': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/explicit-module-boundary-types': 'warn', // TODO: errorに戻す
+    '@typescript-eslint/explicit-function-return-type': 'error',
+    '@typescript-eslint/explicit-module-boundary-types': 'error',
     '@typescript-eslint/no-inferrable-types': 'error',
     // prefer-constはESLintのビルトインルールを使用
-    '@typescript-eslint/no-var-requires': 'warn', // TODO: errorに戻す
+    '@typescript-eslint/no-var-requires': 'error',
     '@typescript-eslint/prefer-readonly': 'error',
     '@typescript-eslint/prefer-readonly-parameter-types': 'off', // 厳しすぎるため無効
-    '@typescript-eslint/no-floating-promises': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/no-misused-promises': 'warn', // TODO: errorに戻す
+    '@typescript-eslint/no-floating-promises': 'error',
+    '@typescript-eslint/no-misused-promises': 'error',
     '@typescript-eslint/await-thenable': 'error',
-    '@typescript-eslint/require-await': 'warn', // TODO: errorに戻す
+    '@typescript-eslint/require-await': 'error',
     '@typescript-eslint/no-unnecessary-type-assertion': 'error',
-    '@typescript-eslint/prefer-nullish-coalescing': 'warn', // TODO: errorに戻す
+    '@typescript-eslint/prefer-nullish-coalescing': 'error',
     '@typescript-eslint/prefer-optional-chain': 'error',
     '@typescript-eslint/switch-exhaustiveness-check': 'error',
     
-    // 型安全性 - 段階的改善用
-    '@typescript-eslint/no-unsafe-assignment': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/no-unsafe-member-access': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/no-unsafe-call': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/no-unsafe-return': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/no-unsafe-argument': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/restrict-template-expressions': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/no-base-to-string': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/restrict-plus-operands': 'warn', // TODO: errorに戻す
-    '@typescript-eslint/no-redundant-type-constituents': 'warn', // TODO: errorに戻す
+    // 型安全性 - 厳格化
+    '@typescript-eslint/no-unsafe-assignment': 'error',
+    '@typescript-eslint/no-unsafe-member-access': 'error',
+    '@typescript-eslint/no-unsafe-call': 'error',
+    '@typescript-eslint/no-unsafe-return': 'error',
+    '@typescript-eslint/no-unsafe-argument': 'error',
+    '@typescript-eslint/restrict-template-expressions': 'error',
+    '@typescript-eslint/no-base-to-string': 'error',
+    '@typescript-eslint/restrict-plus-operands': 'error',
+    '@typescript-eslint/no-redundant-type-constituents': 'error',
     
     // JavaScript/General rules - より厳格な設定
     'prefer-const': 'error',

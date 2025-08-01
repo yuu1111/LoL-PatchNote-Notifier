@@ -85,10 +85,10 @@ export class GeminiSummarizer {
         Logger.info(`Gemini API呼び出し試行 ${attempt}/${this.maxRetries} (${version})`);
 
         // タイムアウト付きでAPI呼び出し
-        const result = await Promise.race([
+        const result = (await Promise.race([
           this.model.generateContent(prompt),
           this.createTimeoutPromise(),
-        ]) as GeminiResult;
+        ])) as GeminiResult;
 
         const response = result.response;
         const text = response.text();
@@ -235,10 +235,18 @@ keyChangesには、チャンピオンの重要な調整、アイテムの大き�
         return {
           version,
           summary: typeof jsonData.summary === 'string' ? jsonData.summary : '',
-          keyChanges: Array.isArray(jsonData.keyChanges) ? jsonData.keyChanges.filter((item): item is string => typeof item === 'string') : [],
-          newFeatures: Array.isArray(jsonData.newFeatures) ? jsonData.newFeatures.filter((item): item is string => typeof item === 'string') : [],
-          importantBugFixes: Array.isArray(jsonData.importantBugFixes) ? jsonData.importantBugFixes.filter((item): item is string => typeof item === 'string') : [],
-          skinContent: Array.isArray(jsonData.skinContent) ? jsonData.skinContent.filter((item): item is string => typeof item === 'string') : [],
+          keyChanges: Array.isArray(jsonData.keyChanges)
+            ? jsonData.keyChanges.filter((item): item is string => typeof item === 'string')
+            : [],
+          newFeatures: Array.isArray(jsonData.newFeatures)
+            ? jsonData.newFeatures.filter((item): item is string => typeof item === 'string')
+            : [],
+          importantBugFixes: Array.isArray(jsonData.importantBugFixes)
+            ? jsonData.importantBugFixes.filter((item): item is string => typeof item === 'string')
+            : [],
+          skinContent: Array.isArray(jsonData.skinContent)
+            ? jsonData.skinContent.filter((item): item is string => typeof item === 'string')
+            : [],
           generatedAt: new Date(),
           model: config.gemini.model,
         };
@@ -249,10 +257,18 @@ keyChangesには、チャンピオンの重要な調整、アイテムの大き�
       return {
         version,
         summary: typeof jsonData.summary === 'string' ? jsonData.summary : '',
-        keyChanges: Array.isArray(jsonData.keyChanges) ? jsonData.keyChanges.filter((item): item is string => typeof item === 'string') : [],
-        newFeatures: Array.isArray(jsonData.newFeatures) ? jsonData.newFeatures.filter((item): item is string => typeof item === 'string') : [],
-        importantBugFixes: Array.isArray(jsonData.importantBugFixes) ? jsonData.importantBugFixes.filter((item): item is string => typeof item === 'string') : [],
-        skinContent: Array.isArray(jsonData.skinContent) ? jsonData.skinContent.filter((item): item is string => typeof item === 'string') : [],
+        keyChanges: Array.isArray(jsonData.keyChanges)
+          ? jsonData.keyChanges.filter((item): item is string => typeof item === 'string')
+          : [],
+        newFeatures: Array.isArray(jsonData.newFeatures)
+          ? jsonData.newFeatures.filter((item): item is string => typeof item === 'string')
+          : [],
+        importantBugFixes: Array.isArray(jsonData.importantBugFixes)
+          ? jsonData.importantBugFixes.filter((item): item is string => typeof item === 'string')
+          : [],
+        skinContent: Array.isArray(jsonData.skinContent)
+          ? jsonData.skinContent.filter((item): item is string => typeof item === 'string')
+          : [],
         generatedAt: new Date(),
         model: config.gemini.model,
       };

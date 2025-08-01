@@ -181,14 +181,14 @@ export class StateManager {
 
       const patchData = await FileStorage.readJson<Record<string, unknown>>(jsonFilePath);
 
-      if (patchData) {
+      if (patchData && this.isPatchNoteData(patchData)) {
         // 日付文字列を Date オブジェクトに変換
         if (typeof patchData.publishedAt === 'string') {
           patchData.publishedAt = new Date(patchData.publishedAt);
         }
 
         Logger.debug(`パッチ詳細を読み込み: ${jsonFilePath}`);
-        return patchData as PatchNote;
+        return patchData as unknown as PatchNote;
       }
 
       return null;
@@ -238,6 +238,23 @@ export class StateManager {
       Logger.error('状態の健全性チェックに失敗しました', error);
       return false;
     }
+  }
+
+  /**
+   * PatchNote型ガード
+   */
+  private isPatchNoteData(data: Record<string, unknown>): data is Record<string, unknown> & {
+    version: string;
+    title: string;
+    url: string;
+    publishedAt: string | Date;
+  } {
+    return (
+      typeof data.version === 'string' &&
+      typeof data.title === 'string' &&
+      typeof data.url === 'string' &&
+      (typeof data.publishedAt === 'string' || data.publishedAt instanceof Date)
+    );
   }
 
   /**
