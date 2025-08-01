@@ -299,7 +299,7 @@ if (require.main === module) {
   });
 
   // 未処理の例外をキャッチ
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtException', error => {
     void (async (): Promise<void> => {
       Logger.error('💥 未処理の例外が発生しました', error);
       await app.stop();

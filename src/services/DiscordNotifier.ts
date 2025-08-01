@@ -165,7 +165,7 @@ export class DiscordNotifier {
           name: '📝 AI要約',
           value:
             summary.summary.length > 1024
-              ? `${summary.summary.substring(0, 1021)  }...`
+              ? `${summary.summary.substring(0, 1021)}...`
               : summary.summary,
           inline: false,
         });
@@ -180,7 +180,7 @@ export class DiscordNotifier {
 
         fields.push({
           name: '🎯 主要な変更点',
-          value: changesText.length > 1024 ? `${changesText.substring(0, 1021)  }...` : changesText,
+          value: changesText.length > 1024 ? `${changesText.substring(0, 1021)}...` : changesText,
           inline: false,
         });
       }

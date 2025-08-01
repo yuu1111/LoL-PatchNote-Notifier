@@ -187,7 +187,7 @@ export class PatchScraper {
    * Scrape the latest patch notes from the official website
    */ public async scrapeLatestPatch(): Promise<PatchNote | null> {
     try {
-      Logger.info(`Starting patch notes scraping from: ${  config.lol.patchNotesUrl}`);
+      Logger.info(`Starting patch notes scraping from: ${config.lol.patchNotesUrl}`);
 
       const response = await httpClient.get<string>(config.lol.patchNotesUrl);
       const $ = cheerio.load(response.data);
@@ -374,7 +374,9 @@ export class PatchScraper {
 
     // First try within the container
     for (const selector of this.selectors.url) {
-      if (!selector) {continue;} // Skip empty selector
+      if (!selector) {
+        continue;
+      } // Skip empty selector
       const linkElement = container.find(selector).first();
       if (linkElement.length > 0) {
         const href = linkElement.attr('href');
@@ -386,7 +388,9 @@ export class PatchScraper {
 
     // Fallback to document-wide search
     for (const selector of this.selectors.url) {
-      if (!selector) {continue;} // Skip empty selector
+      if (!selector) {
+        continue;
+      } // Skip empty selector
       const linkElement = $(selector).first();
       if (linkElement.length > 0) {
         const href = linkElement.attr('href');
@@ -498,11 +502,11 @@ export class PatchScraper {
     }
 
     if (url.startsWith('//')) {
-      return `https:${  url}`;
+      return `https:${url}`;
     }
 
     if (url.startsWith('/')) {
-      return `https://www.leagueoflegends.com${  url}`;
+      return `https://www.leagueoflegends.com${url}`;
     }
 
     return url;

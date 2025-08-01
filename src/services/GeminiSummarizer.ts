@@ -210,7 +210,7 @@ ${patchNote.content}
       // パースに失敗した場合のフォールバック
       return {
         version,
-        summary: `${response.substring(0, 500)  }...`, // 最初の500文字を使用
+        summary: `${response.substring(0, 500)}...`, // 最初の500文字を使用
         keyChanges: ['詳細は元のパッチノートをご確認ください'],
         generatedAt: new Date(),
         model: config.gemini.model,
