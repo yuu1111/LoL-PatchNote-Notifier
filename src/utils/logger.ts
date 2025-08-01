@@ -24,7 +24,8 @@ function createLogger(): winston.Logger {
         debug: 'DBG',
       };
       const shortLevel = levelMap[level] || level.substring(0, 3).toUpperCase();
-      return `[${timestamp} ${shortLevel}] ${message}${stack ? `\n${stack}` : ''}`;
+      const logLine = `[${timestamp} ${shortLevel}] ${message}`;
+      return stack ? `${logLine}\n${stack}` : logLine;
     })
   );
 

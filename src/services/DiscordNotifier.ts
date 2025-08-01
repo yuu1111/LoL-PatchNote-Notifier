@@ -176,11 +176,53 @@ export class DiscordNotifier {
         const changes = summary.keyChanges
           .slice(0, 5)
           .map((change, index) => `${index + 1}. ${change}`);
-        const changesText = changes.join('\n');
+        const changesText = changes.join('\n\n');
 
         fields.push({
           name: '🎯 主要な変更点',
           value: changesText.length > 1024 ? `${changesText.substring(0, 1021)}...` : changesText,
+          inline: false,
+        });
+      }
+
+      // 新機能を追加（最大3つまで）
+      if (summary.newFeatures && summary.newFeatures.length > 0) {
+        const featuresText = summary.newFeatures
+          .slice(0, 3)
+          .map((feature, index) => `${index + 1}. ${feature}`)
+          .join('\n\n');
+
+        fields.push({
+          name: '✨ 新機能',
+          value: featuresText.length > 1024 ? `${featuresText.substring(0, 1021)}...` : featuresText,
+          inline: false,
+        });
+      }
+
+      // 重要なバグ修正を追加（最大3つまで）
+      if (summary.importantBugFixes && summary.importantBugFixes.length > 0) {
+        const bugFixText = summary.importantBugFixes
+          .slice(0, 3)
+          .map((fix, index) => `${index + 1}. ${fix}`)
+          .join('\n\n');
+
+        fields.push({
+          name: '🔧 重要なバグ修正',
+          value: bugFixText.length > 1024 ? `${bugFixText.substring(0, 1021)}...` : bugFixText,
+          inline: false,
+        });
+      }
+
+      // スキン・コンテンツ情報を追加（最大3つまで）
+      if (summary.skinContent && summary.skinContent.length > 0) {
+        const skinText = summary.skinContent
+          .slice(0, 3)
+          .map((skin, index) => `${index + 1}. ${skin}`)
+          .join('\n\n');
+
+        fields.push({
+          name: '🎨 スキン・コンテンツ',
+          value: skinText.length > 1024 ? `${skinText.substring(0, 1021)}...` : skinText,
           inline: false,
         });
       }

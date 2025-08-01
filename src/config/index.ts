@@ -18,6 +18,25 @@ function validateEnvironment(): void {
 }
 
 /**
+ * Generate session-based log filename - cached per session
+ */
+let _sessionLogFilename: string | null = null;
+function generateLogFilename(): string {
+  if (!_sessionLogFilename) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hour = String(now.getHours()).padStart(2, '0');
+    const minute = String(now.getMinutes()).padStart(2, '0');
+    
+    _sessionLogFilename = `logs/${year}-${month}-${day}-${hour}-${minute}.log`;
+  }
+  
+  return _sessionLogFilename;
+}
+
+/**
  * Load and validate configuration from environment
  */
 export function loadConfig(): AppConfig {
@@ -45,7 +64,7 @@ export function loadConfig(): AppConfig {
     },
     logging: {
       level: process.env.LOG_LEVEL ?? 'info',
-      filePath: `logs/${new Date().toISOString().slice(0, 16).replace('T', '-').replace(':', '-')}`,
+      filePath: generateLogFilename(),
     },
     storage: {
       patchesDir: 'patches',

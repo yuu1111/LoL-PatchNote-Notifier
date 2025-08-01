@@ -63,6 +63,9 @@ export interface GeminiSummary {
   version: string;
   summary: string;
   keyChanges: string[];
+  newFeatures?: string[];
+  importantBugFixes?: string[];
+  skinContent?: string[];
   generatedAt: Date;
   model: string;
 }
