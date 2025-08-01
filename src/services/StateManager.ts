@@ -194,15 +194,15 @@ export class StateManager {
           url: patchData.url,
           publishedAt: patchData.publishedAt,
         };
-        
+
         if (patchData.content && typeof patchData.content === 'string') {
           result.content = patchData.content;
         }
-        
+
         if (patchData.imageUrl && typeof patchData.imageUrl === 'string') {
           result.imageUrl = patchData.imageUrl;
         }
-        
+
         return result;
       }
 
