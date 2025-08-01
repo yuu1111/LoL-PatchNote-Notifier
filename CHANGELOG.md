@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-08-01
+
+### Added
+- 📋 **English Release Rules** - Added standardized English release documentation in CLAUDE.md
+- 🌐 **International Accessibility** - Enhanced release process for global users
+
+### Changed
+- 🔄 **GitHub Actions Workflow** - Updated release templates to use English descriptions
+- 📖 **Release Documentation** - Standardized installation and configuration instructions
+- 🏷️ **Tag Messages** - Converted to English for better international accessibility
+
+### Fixed
+- 🛠️ **Release Workflow** - Fixed npm pkg command syntax error in GitHub Actions
+- 📦 **Artifact Generation** - Improved release artifact packaging process
+
+### Documentation
+- 📚 **Development Guidelines** - Enhanced CLAUDE.md with clear release standards
+- 🗂️ **Repository Structure** - Better organization of development documentation
+
 ## [1.0.0] - 2025-08-01
 
 ### Added
@@ -34,4 +53,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Environment variable validation
 - Safe configuration handling
 
+[1.0.1]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.1
 [1.0.0]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.0
