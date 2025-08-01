@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 重要: 日本語での対話
+このプロジェクトでの対話は**日本語**で行うこと。コミット メッセージ、ログ出力、コメントなども日本語を使用する。
+
 ## Project Overview
 
 League of Legends Patch Notifier - A TypeScript/Node.js system that monitors the official LoL patch notes website and automatically sends Discord notifications when new patches are released.
