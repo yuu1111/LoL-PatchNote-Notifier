@@ -97,3 +97,8 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+# Release artifacts
+release/
+*.tar.gz
+*.zip
