@@ -214,7 +214,9 @@ export class PatchScraper {
         );
         $el.children().each((j, child) => {
           const $child = $(child);
-          Logger.debug(`  Child ${j}: tag=${child.tagName}, classes="${$child.attr('class')}"`);
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+          const tagName = (child as any).tagName ?? 'unknown';
+          Logger.debug(`  Child ${j}: tag=${tagName}, classes="${$child.attr('class')}"`);
         });
       });
 
@@ -236,13 +238,17 @@ export class PatchScraper {
       // Debug: Show children structure
       patchElement.children().each((i, child) => {
         const $child = $(child);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+        const tagName = (child as any).tagName ?? 'unknown';
         Logger.debug(
-          `  Child ${i}: tag=${child.tagName}, classes="${$child.attr('class')}", text="${$child.text().substring(0, 100)}..."`
+          `  Child ${i}: tag=${tagName}, classes="${$child.attr('class')}", text="${$child.text().substring(0, 100)}..."`
         );
         $child.children().each((j, grandchild) => {
           const $grandchild = $(grandchild);
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+          const grandchildTagName = (grandchild as any).tagName ?? 'unknown';
           Logger.debug(
-            `    Grandchild ${j}: tag=${grandchild.tagName}, classes="${$grandchild.attr('class')}", text="${$grandchild.text().substring(0, 50)}..."`
+            `    Grandchild ${j}: tag=${grandchildTagName}, classes="${$grandchild.attr('class')}", text="${$grandchild.text().substring(0, 50)}..."`
           );
         });
       });

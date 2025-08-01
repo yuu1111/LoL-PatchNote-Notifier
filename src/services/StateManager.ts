@@ -188,7 +188,22 @@ export class StateManager {
         }
 
         Logger.debug(`パッチ詳細を読み込み: ${jsonFilePath}`);
-        return patchData as unknown as PatchNote;
+        const result: PatchNote = {
+          version: patchData.version,
+          title: patchData.title,
+          url: patchData.url,
+          publishedAt: patchData.publishedAt,
+        };
+        
+        if (patchData.content && typeof patchData.content === 'string') {
+          result.content = patchData.content;
+        }
+        
+        if (patchData.imageUrl && typeof patchData.imageUrl === 'string') {
+          result.imageUrl = patchData.imageUrl;
+        }
+        
+        return result;
       }
 
       return null;
