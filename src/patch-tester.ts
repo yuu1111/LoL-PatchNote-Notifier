@@ -10,9 +10,9 @@ import { ImageDownloader } from './services/ImageDownloader';
 import { Logger } from './utils/logger';
 
 class PatchTester {
-  private patchScraper: PatchScraper;
-  private stateManager: StateManager;
-  private imageDownloader: ImageDownloader;
+  private readonly patchScraper: PatchScraper;
+  private readonly stateManager: StateManager;
+  private readonly imageDownloader: ImageDownloader;
 
   constructor() {
     this.patchScraper = new PatchScraper();

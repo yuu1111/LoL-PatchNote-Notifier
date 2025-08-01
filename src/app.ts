@@ -160,7 +160,7 @@ export class App {
       await this.discordNotifier.sendPatchNotification(
         latestPatch,
         localImagePath,
-        summary || undefined
+        summary ?? undefined
       );
       Logger.info('🚀 Discord通知を送信しました');
 
@@ -253,8 +253,8 @@ export class App {
    */
   public getStatus(): {
     isRunning: boolean;
-    scheduler: any;
-    state: any;
+    scheduler: object;
+    state: object;
   } {
     return {
       isRunning: !this.isShuttingDown,
@@ -282,23 +282,29 @@ if (require.main === module) {
   const app = new App();
 
   // シグナルハンドラー
-  process.on('SIGINT', async () => {
-    Logger.info('📡 SIGINT受信 - アプリケーションを終了中...');
-    await app.stop();
-    process.exit(0);
+  process.on('SIGINT', () => {
+    void (async (): Promise<void> => {
+      Logger.info('📡 SIGINT受信 - アプリケーションを終了中...');
+      await app.stop();
+      process.exit(0);
+    })();
   });
 
-  process.on('SIGTERM', async () => {
-    Logger.info('📡 SIGTERM受信 - アプリケーションを終了中...');
-    await app.stop();
-    process.exit(0);
+  process.on('SIGTERM', () => {
+    void (async (): Promise<void> => {
+      Logger.info('📡 SIGTERM受信 - アプリケーションを終了中...');
+      await app.stop();
+      process.exit(0);
+    })();
   });
 
   // 未処理の例外をキャッチ
-  process.on('uncaughtException', async error => {
-    Logger.error('💥 未処理の例外が発生しました', error);
-    await app.stop();
-    process.exit(1);
+  process.on('uncaughtException', (error) => {
+    void (async (): Promise<void> => {
+      Logger.error('💥 未処理の例外が発生しました', error);
+      await app.stop();
+      process.exit(1);
+    })();
   });
 
   process.on('unhandledRejection', (reason, promise) => {

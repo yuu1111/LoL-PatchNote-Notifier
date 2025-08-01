@@ -34,8 +34,8 @@ class RateLimiter {
  * HTTP Client class with built-in retry and rate limiting
  */
 export class HttpClient {
-  private axiosInstance: AxiosInstance;
-  private rateLimiter = new RateLimiter();
+  private readonly axiosInstance: AxiosInstance;
+  private readonly rateLimiter = new RateLimiter();
 
   constructor() {
     this.axiosInstance = axios.create({
