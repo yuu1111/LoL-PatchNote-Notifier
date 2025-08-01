@@ -36,7 +36,7 @@ function createLogger(): winston.Logger {
 
   // Add file transport if configured
   if (config.logging.filePath) {
-    const logDir = path.dirname(config.logging.filePath);
+    const _logDir = path.dirname(config.logging.filePath); // ディレクトリ情報（将来的に使用予定）
 
     transports.push(
       new winston.transports.File({
