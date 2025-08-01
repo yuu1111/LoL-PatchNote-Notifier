@@ -9,7 +9,7 @@ import { AppConfig } from '../types';
  * Validate required environment variables
  */
 function validateEnvironment(): void {
-  const required = ['DISCORD_WEBHOOK_URL'];
+  const required = ['DISCORD_WEBHOOK_URL', 'GEMINI_API_KEY'];
   const missing = required.filter(key => !process.env[key]);
 
   if (missing.length > 0) {
@@ -31,15 +31,24 @@ export function loadConfig(): AppConfig {
       patchNotesUrl: process.env.LOL_PATCH_NOTES_URL ||
         'https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes',
     },
+    gemini: {
+      apiKey: process.env.GEMINI_API_KEY!,
+      model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+      temperature: parseFloat(process.env.GEMINI_TEMPERATURE || '0.3'),
+      maxTokens: parseInt(process.env.GEMINI_MAX_TOKENS || '8192', 10),
+      timeout: parseInt(process.env.GEMINI_TIMEOUT || '60000', 10),
+      maxRetries: parseInt(process.env.GEMINI_MAX_RETRIES || '3', 10),
+    },
     monitoring: {
       checkIntervalMinutes: parseInt(process.env.CHECK_INTERVAL_MINUTES || '90', 10),
     },    logging: {
       level: process.env.LOG_LEVEL || 'info',
-      ...(process.env.LOG_FILE_PATH && { filePath: process.env.LOG_FILE_PATH }),
+      filePath: `logs/${new Date().toISOString().slice(0, 16).replace('T', '-').replace(':', '-')}`,
     },
     storage: {
-      patchesDir: process.env.PATCHES_DIR || 'patches',
-      imagesDir: process.env.IMAGES_DIR || 'patches/images',
+      patchesDir: 'patches',
+      imagesDir: 'patches/images',
+      summariesDir: 'patches/summaries',
     },
     http: {
       timeout: parseInt(process.env.REQUEST_TIMEOUT || '30000', 10),

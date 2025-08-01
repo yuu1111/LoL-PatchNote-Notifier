@@ -102,7 +102,13 @@ export class StateManager {
     try {
       const state = await this.loadState();
 
-      state.lastCheckedPatch = patchNote;
+      // バージョン情報のみをlast_patch_status.jsonに保存
+      state.lastCheckedPatch = {
+        version: patchNote.version,
+        title: patchNote.title,
+        url: patchNote.url,
+        publishedAt: patchNote.publishedAt
+      } as PatchNote;
       state.lastNotificationSent = new Date();
       state.totalNotificationsSent += 1;
 
@@ -161,6 +167,35 @@ export class StateManager {
     } catch (error) {
       Logger.error('パッチ詳細の保存に失敗しました', error);
       // 詳細保存の失敗は致命的ではないので例外を投げない
+    }
+  }
+
+  /**
+   * パッチノートの詳細データを読み込み
+   */
+  public async loadPatchDetails(version: string): Promise<PatchNote | null> {
+    try {
+      const sanitizedVersion = version.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const patchDir = path.join(this.patchesDir, `patch_${sanitizedVersion}`);
+      const jsonFilePath = path.join(patchDir, `patch_${sanitizedVersion}.json`);
+
+      const patchData = await FileStorage.readJson<any>(jsonFilePath);
+      
+      if (patchData) {
+        // 日付文字列を Date オブジェクトに変換
+        if (patchData.publishedAt) {
+          patchData.publishedAt = new Date(patchData.publishedAt);
+        }
+        
+        Logger.debug(`パッチ詳細を読み込み: ${jsonFilePath}`);
+        return patchData as PatchNote;
+      }
+      
+      return null;
+
+    } catch (error) {
+      Logger.warn(`パッチ詳細の読み込みに失敗: ${version}`, error);
+      return null;
     }
   }
 

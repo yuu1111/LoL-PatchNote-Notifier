@@ -12,6 +12,7 @@ export interface PatchNote {
   localImagePath?: string;
   publishedAt: Date;
   content?: string;
+  summary?: string; // Gemini生成の要約
 }
 
 // Discord Webhook Payload
@@ -48,6 +49,24 @@ export interface AppState {
   isRunning: boolean;
 }
 
+// Gemini AI 設定と型
+export interface GeminiConfig {
+  apiKey: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  timeout: number;
+  maxRetries: number;
+}
+
+export interface GeminiSummary {
+  version: string;
+  summary: string;
+  keyChanges: string[];
+  generatedAt: Date;
+  model: string;
+}
+
 // Configuration Types
 export interface AppConfig {
   discord: {
@@ -55,6 +74,14 @@ export interface AppConfig {
   };
   lol: {
     patchNotesUrl: string;
+  };
+  gemini: {
+    apiKey: string;
+    model: string;
+    temperature: number;
+    maxTokens: number;
+    timeout: number;
+    maxRetries: number;
   };
   monitoring: {
     checkIntervalMinutes: number;
@@ -66,6 +93,7 @@ export interface AppConfig {
   storage: {
     patchesDir: string;
     imagesDir: string;
+    summariesDir: string; // Gemini要約保存ディレクトリ
   };
   http: {
     timeout: number;

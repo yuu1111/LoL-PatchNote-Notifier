@@ -8,7 +8,7 @@ import FormData from 'form-data';
 import { httpClient } from '../utils/httpClient';
 import { Logger } from '../utils/logger';
 import { config } from '../config';
-import { PatchNote, DiscordWebhookPayload, DiscordEmbed, DiscordError } from '../types';
+import { PatchNote, DiscordWebhookPayload, DiscordEmbed, DiscordError, GeminiSummary } from '../types';
 
 export class DiscordNotifier {
   private readonly webhookUrl: string;
@@ -20,12 +20,12 @@ export class DiscordNotifier {
   /**
    * Send patch notification to Discord (エンベッド内画像表示)
    */
-  public async sendPatchNotification(patchNote: PatchNote, localImagePath?: string): Promise<void> {
+  public async sendPatchNotification(patchNote: PatchNote, localImagePath?: string, summary?: GeminiSummary): Promise<void> {
     try {
       Logger.info(`Sending Discord notification for patch: ${patchNote.title}`);
 
       // エンベッド内に画像を含めて送信
-      await this.sendEmbedWithImage(patchNote, localImagePath);
+      await this.sendEmbedWithImage(patchNote, localImagePath, summary);
 
       Logger.info(`✅ Discord通知が完了しました: ${patchNote.version}`);
 
@@ -44,7 +44,7 @@ export class DiscordNotifier {
   /**
    * エンベッド内に画像を含めて送信
    */
-  private async sendEmbedWithImage(patchNote: PatchNote, localImagePath?: string): Promise<void> {
+  private async sendEmbedWithImage(patchNote: PatchNote, localImagePath?: string, summary?: GeminiSummary): Promise<void> {
     // ローカル画像があれば、一時的にURLとして設定（後でattachment://で参照）
     let imageUrl = patchNote.imageUrl;
     let hasLocalImage = false;
@@ -66,7 +66,7 @@ export class DiscordNotifier {
       patchNote.imageUrl = imageUrl;
     }
 
-    const embed = this.createPatchEmbed(patchNote, true); // 画像URLを含める
+    const embed = this.createPatchEmbed(patchNote, true, summary); // 画像URLと要約を含める
     
     // 元のimageUrlを復元
     if (originalImageUrl !== undefined) {
@@ -124,27 +124,60 @@ export class DiscordNotifier {
   /**
    * Create Discord embed for patch note
    */
-  private createPatchEmbed(patchNote: PatchNote, includeImage: boolean = true): DiscordEmbed {
+  private createPatchEmbed(patchNote: PatchNote, includeImage: boolean = true, summary?: GeminiSummary): DiscordEmbed {
+    const fields = [
+      {
+        name: '📋 バージョン',
+        value: patchNote.version,
+        inline: true,
+      },
+      {
+        name: '🔗 リンク',
+        value: `[パッチノートを読む](${patchNote.url})`,
+        inline: true,
+      },
+    ];
+
+    // Gemini要約がある場合は追加
+    if (summary) {
+      // 要約を追加
+      if (summary.summary) {
+        fields.push({
+          name: '📝 AI要約',
+          value: summary.summary.length > 1024 ? summary.summary.substring(0, 1021) + '...' : summary.summary,
+          inline: false,
+        });
+      }
+
+      // 主要な変更点を追加（最大5つまで）
+      if (summary.keyChanges && summary.keyChanges.length > 0) {
+        const changes = summary.keyChanges.slice(0, 5).map((change, index) => `${index + 1}. ${change}`);
+        const changesText = changes.join('\n');
+        
+        fields.push({
+          name: '🎯 主要な変更点',
+          value: changesText.length > 1024 ? changesText.substring(0, 1021) + '...' : changesText,
+          inline: false,
+        });
+      }
+
+      // AIモデル情報を追加
+      fields.push({
+        name: '🤖 要約生成',
+        value: `${summary.model} | ${new Date(summary.generatedAt).toLocaleString('ja-JP')}`,
+        inline: true,
+      });
+    }
+
     const embed: DiscordEmbed = {
       title: patchNote.title,
       url: patchNote.url,
-      color: 0x0099ff, // Blue color
+      color: summary ? 0x00ff99 : 0x0099ff, // 要約がある場合は緑系、ない場合は青系
       timestamp: patchNote.publishedAt.toISOString(),
       footer: {
-        text: 'League of Legends Patch Notifier',
+        text: summary ? 'League of Legends Patch Notifier | AI要約付き' : 'League of Legends Patch Notifier',
       },
-      fields: [
-        {
-          name: '📋 バージョン',
-          value: patchNote.version,
-          inline: true,
-        },
-        {
-          name: '🔗 リンク',
-          value: `[パッチノートを読む](${patchNote.url})`,
-          inline: true,
-        },
-      ],
+      fields,
     };
 
     // Add image if available and requested

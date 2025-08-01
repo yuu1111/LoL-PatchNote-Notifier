@@ -7,6 +7,7 @@ import 'dotenv/config';
 import { PatchScraper } from './services/PatchScraper';
 import { DiscordNotifier } from './services/DiscordNotifier';
 import { ImageDownloader } from './services/ImageDownloader';
+import { GeminiSummarizer } from './services/GeminiSummarizer';
 import { StateManager } from './services/StateManager';
 import { Scheduler } from './services/Scheduler';
 import { Logger } from './utils/logger';
@@ -20,6 +21,7 @@ export class App {
   private patchScraper: PatchScraper;
   private discordNotifier: DiscordNotifier;
   private imageDownloader: ImageDownloader;
+  private geminiSummarizer: GeminiSummarizer;
   private stateManager: StateManager;
   private scheduler: Scheduler;
   private isShuttingDown = false;
@@ -28,6 +30,7 @@ export class App {
     this.patchScraper = new PatchScraper();
     this.discordNotifier = new DiscordNotifier();
     this.imageDownloader = new ImageDownloader();
+    this.geminiSummarizer = new GeminiSummarizer();
     this.stateManager = new StateManager();
     this.scheduler = new Scheduler();
   }
@@ -123,15 +126,42 @@ export class App {
         }
       }
 
-      // Discordに通知を送信
-      await this.discordNotifier.sendPatchNotification(latestPatch, localImagePath);
+      // まずパッチ詳細データを保存
+      await this.stateManager.savePatchDetails(latestPatch);
+      Logger.info('💾 パッチ詳細データを保存しました');
+
+      // 保存されたJSONからパッチデータを読み込んでGemini要約を生成
+      let summary;
+      if (latestPatch.content) {
+        try {
+          Logger.info('🤖 保存されたパッチデータからGemini AIで要約を生成中...');
+          
+          // 保存されたJSONファイルからパッチデータを読み込み
+          const savedPatch = await this.stateManager.loadPatchDetails(latestPatch.version);
+          if (savedPatch) {
+            summary = await this.geminiSummarizer.generateSummary(savedPatch);
+            if (summary) {
+              Logger.info('✅ パッチノート要約が生成されました');
+              latestPatch.summary = summary.summary; // パッチノートに要約を保存
+            } else {
+              Logger.warn('⚠️ Gemini要約の生成に失敗しましたが、通知は継続します');
+            }
+          } else {
+            Logger.warn('⚠️ 保存されたパッチデータの読み込みに失敗しました');
+          }
+        } catch (summaryError) {
+          Logger.warn('⚠️ Gemini要約の生成中にエラーが発生しましたが、通知は継続します', summaryError);
+        }
+      } else {
+        Logger.info('ℹ️ パッチのコンテンツが無いため、要約生成をスキップします');
+      }
+
+      // Discordに通知を送信（要約付き）
+      await this.discordNotifier.sendPatchNotification(latestPatch, localImagePath, summary || undefined);
       Logger.info('🚀 Discord通知を送信しました');
 
       // 状態を更新（通知完了として記録）
       await this.stateManager.markNotificationSent(latestPatch);
-      
-      // パッチ詳細データを保存
-      await this.stateManager.savePatchDetails(latestPatch);
 
       Logger.info(`✅ パッチ通知処理が完了しました: ${latestPatch.version}`);
       
