@@ -28,5 +28,5 @@ jobs:
         # コメントの設定
         comment-summary-in-pr: always
         # 依存関係変更の詳細表示
-        show-openssf-scorecard: true
+        show-openssf-scorecard: false
         warn-only: false

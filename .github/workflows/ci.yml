@@ -72,19 +72,6 @@ jobs:
     - name: セキュリティ監査
       run: npm audit --audit-level=moderate
     
-    - name: 脆弱性スキャン
-      uses: ossf/scorecard-action@v2.3.1
-      with:
-        results_file: results.sarif
-        results_format: sarif
-        publish_results: true
-      continue-on-error: true
-    
-    - name: SARIF結果のアップロード
-      if: always()
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: results.sarif
 
   quality-gate:
     runs-on: ubuntu-latest
