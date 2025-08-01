@@ -1,360 +1,317 @@
 /**
- * Main application entry point with interval scheduling and graceful shutdown
+ * League of Legends Patch Notifier
+ * メインアプリケーションエントリーポイント
  */
 
-import { pathToFileURL } from 'url';
-import { config } from './config/index.js';
-import { 
-  logStartup, 
-  logShutdown, 
-  logError, 
-  createContextLogger,
-} from './utils/logger.js';
-import { PatchMonitor } from './services/PatchMonitor.js';
-
-const logger = createContextLogger({ component: 'app' });
+import 'dotenv/config';
+import { PatchScraper } from './services/PatchScraper';
+import { DiscordNotifier } from './services/DiscordNotifier';
+import { ImageDownloader } from './services/ImageDownloader';
+import { GeminiSummarizer } from './services/GeminiSummarizer';
+import { StateManager } from './services/StateManager';
+import { Scheduler } from './services/Scheduler';
+import { Logger } from './utils/logger';
+import { config } from './config';
+import { AppError, NetworkError, ScrapingError, DiscordError } from './types';
 
 /**
- * Main application class
+ * メインアプリケーションクラス
  */
-class Application {
-  private patchMonitor: PatchMonitor;
-  private intervalId: NodeJS.Timeout | null = null;
+export class App {
+  private patchScraper: PatchScraper;
+  private discordNotifier: DiscordNotifier;
+  private imageDownloader: ImageDownloader;
+  private geminiSummarizer: GeminiSummarizer;
+  private stateManager: StateManager;
+  private scheduler: Scheduler;
   private isShuttingDown = false;
 
   constructor() {
-    this.patchMonitor = new PatchMonitor();
+    this.patchScraper = new PatchScraper();
+    this.discordNotifier = new DiscordNotifier();
+    this.imageDownloader = new ImageDownloader();
+    this.geminiSummarizer = new GeminiSummarizer();
+    this.stateManager = new StateManager();
+    this.scheduler = new Scheduler();
   }
 
   /**
-   * Start the application
+   * アプリケーション開始
    */
-  async start(): Promise<void> {
+  public async start(): Promise<void> {
     try {
-      logger.info('Starting LoL Patch Notifier application');
-      logStartup();
+      Logger.info('🎮 LoL Patch Notifier を開始しています...');
 
-      // Initialize patch monitor
-      logger.info('Initializing patch monitor...');
-      await this.patchMonitor.initialize();
-      logger.info('Patch monitor initialization completed');
+      // 状態管理システムを初期化
+      await this.stateManager.setRunningState(true);
+      await this.stateManager.validateState();
 
-      // Perform initial check with timeout protection
-      const isFirstRun = this.patchMonitor.isFirstRun();
-      logger.info(isFirstRun ? 
-        '🚀 First run detected - fetching latest patch information (no notifications sent)' : 
-        '🔄 Performing startup patch check'
-      );
+      // 標準パッチ検出システムでスケジューラーを開始
+      Logger.info('📋 標準パッチ検出システムを使用します');
+      this.scheduler.start(() => this.checkForPatches());
+
+      Logger.info(`✅ アプリケーションが正常に開始されました`);
+      Logger.info(`📋 設定: パッチノートURL=${config.lol.patchNotesUrl}`);
+      Logger.info(`🔄 監視間隔: ${config.monitoring.checkIntervalMinutes}分`);
       
-      try {
-        let initialResult: Awaited<ReturnType<typeof this.patchMonitor.checkAndNotify>>;
-        
-        if (isFirstRun) {
-          // On first run, initialize status without sending notifications
-          initialResult = await this.performInitialSetup();
-        } else {
-          // Regular startup check
-          const initialCheckPromise = this.patchMonitor.checkAndNotify();
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Initial check timeout (30s)')), 30000);
-          });
-          
-          initialResult = await Promise.race([initialCheckPromise, timeoutPromise]);
-        }
-        
-        if (initialResult.success) {
-          if (isFirstRun) {
-            logger.info('✅ Latest patch information retrieved successfully', {
-              patch: initialResult.patchInfo?.title || 'No patches found',
-              url: initialResult.patchInfo?.url || 'N/A',
-              note: 'System initialized - will monitor for new patches from now on'
-            });
-          } else if (initialResult.newPatchFound) {
-            logger.info('🎉 New patch detected during startup!', {
-              patch: initialResult.patchInfo?.title,
-              url: initialResult.patchInfo?.url,
-            });
-          } else {
-            logger.info('✅ System is up to date - no new patches', {
-              lastKnownPatch: initialResult.patchInfo?.title || 'No previous patch data',
-            });
-          }
-        } else {
-          logger.warn('⚠️ Initial check failed - will retry on next scheduled run', { 
-            error: initialResult.error 
-          });
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn('⚠️ Initial check failed or timed out - continuing with startup', { 
-          error: errorMessage,
-          note: 'This is non-blocking - regular checks will continue'
-        });
-      }
-
-      // Start interval scheduler
-      this.startScheduler();
-
-      // Setup graceful shutdown handlers
-      this.setupShutdownHandlers();
-
-      logger.info('Application started successfully', {
-        checkIntervalMinutes: config.CHECK_INTERVAL_MINUTES,
-        nodeEnv: config.NODE_ENV,
-      });
-
     } catch (error) {
-      logError(error, 'Failed to start application');
-      process.exit(1);
+      Logger.error('❌ アプリケーションの開始に失敗しました', error);
+      throw error;
     }
-  }
-
-  /**
-   * Start the interval scheduler
+  }  /**
+   * アプリケーション停止
    */
-  private startScheduler(): void {
-    const intervalMs = config.CHECK_INTERVAL_MINUTES * 60 * 1000;
-    
-    logger.info('Starting interval scheduler', {
-      intervalMinutes: config.CHECK_INTERVAL_MINUTES,
-      intervalMs,
-    });
-
-    // Validate interval
-    if (config.CHECK_INTERVAL_MINUTES < 1 || config.CHECK_INTERVAL_MINUTES > 1440) {
-      throw new Error(`Invalid check interval: ${config.CHECK_INTERVAL_MINUTES} minutes (must be 1-1440)`);
-    }
-
-    this.intervalId = setInterval(async () => {
-      if (this.isShuttingDown) {
-        logger.warn('Skipping scheduled check due to shutdown in progress');
-        return;
-      }
-
-      await this.performScheduledCheck();
-    }, intervalMs);
-
-    logger.info('Interval scheduler started successfully', {
-      nextCheckIn: `${config.CHECK_INTERVAL_MINUTES} minutes`,
-    });
-  }
-
-  /**
-   * Perform initial setup without sending notifications (first run)
-   */
-  private async performInitialSetup(): Promise<Awaited<ReturnType<PatchMonitor['checkAndNotify']>>> {
-    const contextLogger = logger.child({ operation: 'performInitialSetup' });
-    
-    try {
-      contextLogger.info('Performing initial setup - fetching latest patch without notifications');
-      
-      // Use the dedicated initialization method that doesn't send notifications
-      const result = await this.patchMonitor.initializeWithCurrentPatch();
-      
-      if (result.success && result.patchInfo) {
-        contextLogger.info('Initial setup completed successfully', {
-          patch: result.patchInfo.title,
-          note: 'System initialized - ready for monitoring',
-        });
-      }
-      
-      // Convert to checkAndNotify format
-      const response: Awaited<ReturnType<PatchMonitor['checkAndNotify']>> = {
-        success: result.success,
-        newPatchFound: false, // This is initial setup, not a "new" patch
-      };
-      
-      if (result.patchInfo) {
-        response.patchInfo = result.patchInfo;
-      }
-      
-      if (result.error) {
-        response.error = result.error;
-      }
-      
-      return response;
-
-    } catch (error) {
-      contextLogger.error('Initial setup failed', { error });
-      
-      return {
-        success: false,
-        newPatchFound: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  /**
-   * Perform a scheduled patch check
-   */
-  private async performScheduledCheck(): Promise<void> {
-    const contextLogger = logger.child({ operation: 'scheduledCheck' });
-    
-    try {
-      contextLogger.info('Starting scheduled patch check');
-      
-      const result = await this.patchMonitor.checkAndNotify();
-      
-      if (result.success) {
-        if (result.newPatchFound) {
-          contextLogger.info('Scheduled check found new patch', {
-            patch: result.patchInfo?.title,
-            url: result.patchInfo?.url,
-          });
-        } else {
-          contextLogger.info('Scheduled check completed, no new patches');
-        }
-      } else {
-        contextLogger.error('Scheduled check failed', { 
-          error: result.error,
-        });
-      }
-
-    } catch (error) {
-      logError(error, 'Unexpected error during scheduled check');
-    }
-  }
-
-  /**
-   * Setup graceful shutdown handlers
-   */
-  private setupShutdownHandlers(): void {
-    const shutdownHandler = (signal: string) => {
-      logger.info(`Received ${signal}, starting graceful shutdown`);
-      this.shutdown(signal);
-    };
-
-    // Handle termination signals
-    process.on('SIGTERM', () => shutdownHandler('SIGTERM'));
-    process.on('SIGINT', () => shutdownHandler('SIGINT'));
-    
-    // Handle uncaught exceptions
-    process.on('uncaughtException', (error) => {
-      logError(error, 'Uncaught exception occurred');
-      this.shutdown('uncaughtException');
-    });
-
-    // Handle unhandled promise rejections
-    process.on('unhandledRejection', (reason, promise) => {
-      logError(reason, 'Unhandled promise rejection', { promise });
-      this.shutdown('unhandledRejection');
-    });
-
-    logger.debug('Shutdown handlers setup completed');
-  }
-
-  /**
-   * Graceful shutdown
-   */
-  private async shutdown(reason: string): Promise<void> {
+  public async stop(): Promise<void> {
     if (this.isShuttingDown) {
-      logger.warn('Shutdown already in progress');
       return;
     }
 
     this.isShuttingDown = true;
-    logger.info('Starting graceful shutdown', { reason });
-
-    const shutdownTimeout = setTimeout(() => {
-      logger.error('Shutdown timeout exceeded, forcing exit');
-      process.exit(1);
-    }, 30000); // 30 second timeout
-
+    
     try {
-      // Stop interval scheduler
-      if (this.intervalId) {
-        logger.info('Stopping interval scheduler');
-        clearInterval(this.intervalId);
-        this.intervalId = null;
+      Logger.info('🛑 LoL Patch Notifier を停止しています...');
+      
+      // スケジューラーを停止
+      this.scheduler.stop();
+      
+      // 実行状態を停止に更新
+      await this.stateManager.setRunningState(false);
+      
+      // バックアップを作成
+      await this.stateManager.createBackup();
+      
+      Logger.info('✅ アプリケーションが正常に停止しました');
+      
+    } catch (error) {
+      Logger.error('❌ アプリケーションの停止中にエラーが発生しました', error);
+    }
+  }
+
+
+  /**
+   * パッチノート監視の実行
+   */
+  public async checkForPatches(): Promise<void> {
+    try {
+      Logger.info('🔍 新しいパッチノートをチェック中...');
+
+      // 最新のパッチノートを取得
+      const latestPatch = await this.patchScraper.scrapeLatestPatch();
+      
+      if (!latestPatch) {
+        Logger.info('📝 パッチノートが見つかりませんでした');
+        return;
       }
 
-      // Cleanup patch monitor
-      await this.patchMonitor.cleanup();
+      Logger.info(`📋 パッチを発見: ${latestPatch.title} (v${latestPatch.version})`);
 
-      // Clear shutdown timeout
-      clearTimeout(shutdownTimeout);
+      // 既に通知済みかチェック
+      const isAlreadyNotified = await this.stateManager.isAlreadyNotified(latestPatch);
+      
+      if (isAlreadyNotified) {
+        Logger.info('✅ このパッチは既に通知済みです');
+        return;
+      }      // 画像をダウンロード（存在する場合）
+      let localImagePath: string | undefined;
+      if (latestPatch.imageUrl) {
+        try {
+          localImagePath = await this.imageDownloader.downloadPatchImage(
+            latestPatch.imageUrl,
+            latestPatch.version
+          );
+          latestPatch.localImagePath = localImagePath;
+          Logger.info(`🖼️ パッチ画像をダウンロード: ${localImagePath}`);
+        } catch (imageError) {
+          Logger.warn('⚠️ パッチ画像のダウンロードに失敗しましたが、通知は継続します', imageError);
+        }
+      }
 
-      logShutdown(reason);
-      logger.info('Graceful shutdown completed successfully');
+      // まずパッチ詳細データを保存
+      await this.stateManager.savePatchDetails(latestPatch);
+      Logger.info('💾 パッチ詳細データを保存しました');
 
-      process.exit(0);
+      // 保存されたJSONからパッチデータを読み込んでGemini要約を生成
+      let summary;
+      if (latestPatch.content) {
+        try {
+          Logger.info('🤖 保存されたパッチデータからGemini AIで要約を生成中...');
+          
+          // 保存されたJSONファイルからパッチデータを読み込み
+          const savedPatch = await this.stateManager.loadPatchDetails(latestPatch.version);
+          if (savedPatch) {
+            summary = await this.geminiSummarizer.generateSummary(savedPatch);
+            if (summary) {
+              Logger.info('✅ パッチノート要約が生成されました');
+              latestPatch.summary = summary.summary; // パッチノートに要約を保存
+            } else {
+              Logger.warn('⚠️ Gemini要約の生成に失敗しましたが、通知は継続します');
+            }
+          } else {
+            Logger.warn('⚠️ 保存されたパッチデータの読み込みに失敗しました');
+          }
+        } catch (summaryError) {
+          Logger.warn('⚠️ Gemini要約の生成中にエラーが発生しましたが、通知は継続します', summaryError);
+        }
+      } else {
+        Logger.info('ℹ️ パッチのコンテンツが無いため、要約生成をスキップします');
+      }
 
+      // Discordに通知を送信（要約付き）
+      await this.discordNotifier.sendPatchNotification(latestPatch, localImagePath, summary || undefined);
+      Logger.info('🚀 Discord通知を送信しました');
+
+      // 状態を更新（通知完了として記録）
+      await this.stateManager.markNotificationSent(latestPatch);
+
+      Logger.info(`✅ パッチ通知処理が完了しました: ${latestPatch.version}`);
+      
     } catch (error) {
-      clearTimeout(shutdownTimeout);
-      logError(error, 'Error during graceful shutdown');
-      process.exit(1);
+      await this.handleError(error, 'パッチノートチェック処理');
     }
   }
 
   /**
-   * Get application status (for health checks)
+   * エラーハンドリング
    */
-  async getStatus(): Promise<{
-    application: {
-      isRunning: boolean;
-      isShuttingDown: boolean;
-      checkIntervalMinutes: number;
-      schedulerRunning: boolean;
-    };
-    monitor: Awaited<ReturnType<PatchMonitor['getStatus']>>;
-    health: Awaited<ReturnType<PatchMonitor['healthCheck']>>;
-  }> {
-    const [monitorStatus, health] = await Promise.all([
-      this.patchMonitor.getStatus(),
-      this.patchMonitor.healthCheck(),
-    ]);
+  private async handleError(error: unknown, context: string): Promise<void> {
+    let errorMessage = `${context}中にエラーが発生しました`;
+    
+    if (error instanceof ScrapingError) {
+      errorMessage = `スクレイピングエラー: ${error.message}`;
+      Logger.error(errorMessage, error);
+    } else if (error instanceof NetworkError) {
+      errorMessage = `ネットワークエラー: ${error.message}`;
+      Logger.error(errorMessage, error);
+    } else if (error instanceof DiscordError) {
+      errorMessage = `Discord通知エラー: ${error.message}`;
+      Logger.error(errorMessage, error);
+    } else if (error instanceof AppError) {
+      errorMessage = `アプリケーションエラー: ${error.message}`;
+      Logger.error(errorMessage, error);
+    } else {
+      Logger.error(errorMessage, error);
+    }
 
+    // 重要なエラーの場合はDiscordに通知
+    try {
+      if (error instanceof ScrapingError || error instanceof DiscordError) {
+        await this.discordNotifier.sendErrorNotification(
+          error instanceof Error ? error : new Error(String(error)),
+          context
+        );
+      }
+    } catch (notificationError) {
+      Logger.error('エラー通知の送信に失敗しました', notificationError);
+    }
+  }  /**
+   * テスト通知の送信
+   */
+  public async sendTestNotification(): Promise<void> {
+    try {
+      Logger.info('🧪 テスト通知を送信中...');
+      await this.discordNotifier.sendTestNotification();
+      Logger.info('✅ テスト通知が正常に送信されました');
+    } catch (error) {
+      Logger.error('❌ テスト通知の送信に失敗しました', error);
+      throw error;
+    }
+  }
+
+  /**
+   * アプリケーションの健全性チェック
+   */
+  public async healthCheck(): Promise<boolean> {
+    try {
+      Logger.info('🔍 健全性チェックを実行中...');
+
+      // Discord Webhook URLの検証
+      if (!DiscordNotifier.validateWebhookUrl(config.discord.webhookUrl)) {
+        Logger.error('❌ Discord Webhook URLが無効です');
+        return false;
+      }
+
+      // 状態管理システムの検証
+      const stateValid = await this.stateManager.validateState();
+      if (!stateValid) {
+        Logger.error('❌ 状態管理システムに問題があります');
+        return false;
+      }
+
+      Logger.info('✅ 健全性チェック完了');
+      return true;
+      
+    } catch (error) {
+      Logger.error('❌ 健全性チェック中にエラーが発生しました', error);
+      return false;
+    }
+  }
+
+  /**
+   * アプリケーションのステータス情報を取得
+   */
+  public getStatus(): {
+    isRunning: boolean;
+    scheduler: any;
+    state: any;
+  } {
     return {
-      application: {
-        isRunning: !this.isShuttingDown,
-        isShuttingDown: this.isShuttingDown,
-        checkIntervalMinutes: config.CHECK_INTERVAL_MINUTES,
-        schedulerRunning: !!this.intervalId,
-      },
-      monitor: monitorStatus,
-      health,
+      isRunning: !this.isShuttingDown,
+      scheduler: this.scheduler.getStatus(),
+      state: this.stateManager.getCurrentState(),
     };
   }
 
   /**
-   * Force a patch check (for manual testing)
+   * 手動でパッチチェックを実行
    */
-  async forceCheck(): Promise<Awaited<ReturnType<PatchMonitor['checkAndNotify']>>> {
-    logger.info('Manual patch check requested');
-    return await this.patchMonitor.checkAndNotify();
-  }
-
-  /**
-   * Force send notification (for testing)
-   */
-  async forceNotification(): Promise<Awaited<ReturnType<PatchMonitor['forceNotification']>>> {
-    logger.info('Manual notification requested');
-    return await this.patchMonitor.forceNotification();
+  public async executeManualCheck(): Promise<void> {
+    try {
+      Logger.info('🖱️ 手動パッチチェックを実行中...');
+      await this.scheduler.executeManually(() => this.checkForPatches());
+    } catch (error) {
+      Logger.error('❌ 手動パッチチェックに失敗しました', error);
+      throw error;
+    }
   }
 }
 
-// Create application instance
-const app = new Application();
-
-// Export for testing
-export { Application };
-
-// Start application if this file is run directly
-// Fix for Windows path handling in ESM
-const currentModuleUrl = import.meta.url;
-const scriptPath = process.argv[1];
-
-if (scriptPath) {
-  const mainModuleUrl = pathToFileURL(scriptPath).href;
+// メイン実行部分
+if (require.main === module) {
+  const app = new App();
   
-  if (currentModuleUrl === mainModuleUrl) {
-    app.start().catch((error) => {
-      logError(error, 'Application startup failed');
+  // シグナルハンドラー
+  process.on('SIGINT', async () => {
+    Logger.info('📡 SIGINT受信 - アプリケーションを終了中...');
+    await app.stop();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    Logger.info('📡 SIGTERM受信 - アプリケーションを終了中...');
+    await app.stop();
+    process.exit(0);
+  });
+
+  // 未処理の例外をキャッチ
+  process.on('uncaughtException', async (error) => {
+    Logger.error('💥 未処理の例外が発生しました', error);
+    await app.stop();
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    Logger.error('💥 未処理のPromise拒否が発生しました', { reason, promise });
+    app.stop().then(() => {
+      process.exit(1);
+    }).catch(() => {
       process.exit(1);
     });
-  }
-}
+  });
 
-// Export app instance for testing
-export default app;
+  // アプリケーション開始
+  app.start().catch(async (error) => {
+    Logger.error('💥 アプリケーションの開始に失敗しました', error);
+    await app.stop();
+    process.exit(1);
+  });
+}

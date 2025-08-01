@@ -8,15 +8,5 @@
   "quoteProps": "as-needed",
   "bracketSpacing": true,
   "arrowParens": "avoid",
-  "endOfLine": "lf",
-  "bracketSameLine": false,
-  "overrides": [
-    {
-      "files": "*.md",
-      "options": {
-        "printWidth": 80,
-        "proseWrap": "always"
-      }
-    }
-  ]
+  "endOfLine": "lf"
 }

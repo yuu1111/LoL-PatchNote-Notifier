@@ -1,373 +1,241 @@
-# LoL PatchNote Notifier
+# League of Legends Patch Notifier 🎮
 
-A robust League of Legends patch notification system that monitors Japanese patch notes and sends Discord notifications when new patches are published.
+An intelligent TypeScript/Node.js system that automatically monitors the official League of Legends patch notes website and sends rich Discord notifications with AI-generated summaries when new patches are released.
 
-## Features
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.2%2B-blue.svg)](https://www.typescriptlang.org/)
 
-- 🔍 **Intelligent Scraping**: Monitors LoL Japan patch notes with fallback selectors
-- 📱 **Discord Integration**: Rich embed notifications with @everyone mentions
-- 🛡️ **Resilient Architecture**: Circuit breaker, retry logic, and error handling
-- 📊 **Comprehensive Logging**: Structured logging with metrics collection
-- ⚙️ **Configurable**: Environment-based configuration with validation
-- 🚀 **Production Ready**: Multiple deployment strategies supported
-- 🧪 **Well Tested**: Type-safe with comprehensive error handling
+## 🚀 Features
 
-## Quick Start
+### 🤖 AI-Powered Summaries
+- **Gemini AI Integration**: Automatically generates comprehensive Japanese summaries of patch notes
+- **Key Changes Extraction**: Identifies and highlights the most important changes in each patch
+- **Smart Caching**: 7-day cache system to avoid redundant API calls and reduce costs
+
+### 📱 Rich Discord Notifications
+- **Enhanced Embeds**: Beautiful Discord notifications with patch titles, versions, and links
+- **AI Summary Integration**: Includes generated summaries and key changes in notifications
+- **Image Support**: Automatically downloads and embeds patch images
+- **Duplicate Prevention**: Smart state management prevents duplicate notifications
+
+### 🔄 Robust Monitoring System
+- **Scheduled Monitoring**: Configurable interval checking (default: 60 minutes)
+- **Fallback Selectors**: Multiple CSS selectors handle website structure changes
+- **Retry Logic**: Exponential backoff for HTTP failures (2s, 4s, 8s)
+- **Circuit Breaker**: Prevents cascade failures during outages
+
+### 💾 Data Management
+- **Local Caching**: Patch data and images stored locally for reliability
+- **State Persistence**: JSON-based state management survives application restarts
+- **Organized Storage**: Each patch stored in its own directory with metadata
+
+## 🏗️ Architecture
+
+```
+src/
+├── app.ts                    # Main application entry point & scheduler
+├── config/index.ts           # Environment variables & configuration
+├── services/
+│   ├── PatchScraper.ts       # HTML scraping & data extraction
+│   ├── DiscordNotifier.ts    # Discord webhook notifications
+│   ├── GeminiSummarizer.ts   # AI-powered patch summarization
+│   ├── ImageDownloader.ts    # Image download & caching
+│   ├── StateManager.ts       # State persistence & management
+│   └── Scheduler.ts          # Cron-based scheduling
+├── utils/
+│   ├── logger.ts             # Winston logging system
+│   ├── httpClient.ts         # Axios HTTP client with retry logic
+│   └── fileStorage.ts        # JSON file persistence utilities
+└── types/index.ts            # TypeScript type definitions
+
+patches/                      # Data persistence directory
+├── patch_25.15/              # Individual patch directories
+│   ├── patch_25.15.json      # Patch data and metadata
+│   ├── patch_25.15.jpg       # Cached patch image
+│   └── patch_25.15_summary.json # AI-generated summary
+└── last_patch_status.json    # State tracking file
+```
+
+## 🚀 Quick Start
 
 ### Prerequisites
-
-- Node.js 18+ (LTS recommended)
-- pnpm 8+ (preferred) or npm/yarn
+- Node.js 18+ and npm 8+
 - Discord webhook URL
+- Google Gemini API key
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/yuu1111/LoL-PatchNote-Notifier.git
    cd LoL-Patch-Notifier
    ```
 
 2. **Install dependencies**
    ```bash
-   pnpm install
+   npm install
    ```
 
 3. **Set up environment variables**
    ```bash
    cp .env.example .env
-   # Edit .env with your Discord webhook URL
    ```
-
-4. **Configure Discord webhook**
+   
+   Edit `.env` with your configuration:
    ```env
-   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
+   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_TOKEN
+   GEMINI_API_KEY=your_gemini_api_key_here
+   GEMINI_MODEL=gemini-2.5-flash
+   GEMINI_MAX_TOKENS=25000
+   LOG_LEVEL=info
+   CHECK_INTERVAL_MINUTES=60
    ```
 
-5. **Run the application**
+4. **Build and run**
    ```bash
-   # Development mode with auto-reload
-   pnpm dev
-
-   # Production build and run
-   pnpm build
-   pnpm start
+   npm run build
+   npm start
    ```
-
-## Configuration
-
-### Required Environment Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DISCORD_WEBHOOK_URL` | Discord webhook URL (required) | `https://discord.com/api/webhooks/...` |
-
-### Optional Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOL_PATCH_NOTES_URL` | `https://www.leagueoflegends.com/ja-jp/news/game-updates/` | LoL patch notes page URL |
-| `LAST_STATUS_FILE_PATH` | `./data/last_patch_status.json` | Path for state persistence |
-| `CHECK_INTERVAL_CRON` | `0 */90 * * *` | Cron schedule (every 90 minutes) |
-| `LOG_LEVEL` | `info` | Logging level (`debug`, `info`, `warn`, `error`) |
-| `NODE_ENV` | `development` | Environment (`development`, `staging`, `production`) |
-| `REQUEST_TIMEOUT_MS` | `30000` | HTTP request timeout |
-| `MAX_RETRIES` | `3` | Maximum retry attempts |
-| `RATE_LIMIT_PER_HOUR` | `20` | Rate limit for LoL website |
-
-### Advanced Configuration
-
-```env
-# Circuit Breaker Settings
-CIRCUIT_BREAKER_FAILURE_THRESHOLD=5
-CIRCUIT_BREAKER_RESET_TIMEOUT_MS=60000
-CIRCUIT_BREAKER_MONITORING_PERIOD_MS=120000
-
-# Redis (for production deployments)
-REDIS_URL=redis://localhost:6379
-REDIS_KEY_PREFIX=lol-patch-notifier:
-```
-
-## Discord Webhook Setup
-
-1. **Open Discord Server Settings**
-   - Go to your Discord server
-   - Click on "Server Settings" → "Integrations" → "Webhooks"
-
-2. **Create New Webhook**
-   - Click "Create Webhook"
-   - Set a name (e.g., "LoL Patch Notifier")
-   - Choose the channel for notifications
-   - Copy the webhook URL
-
-3. **Add to Environment**
-   ```env
-   DISCORD_WEBHOOK_URL=your_webhook_url_here
-   ```
-
-## Usage
 
 ### Development
 
 ```bash
-# Start in development mode with auto-reload
-pnpm dev
+# Development with auto-reload
+npm run dev
 
-# Run type checking
-pnpm type-check
+# Type checking & linting
+npm run typecheck
+npm run lint
+npm run format
 
-# Run linting
-pnpm lint
+# Testing
+npm test
+npm run test:coverage
 
-# Format code
-pnpm format
-
-# Run tests
-pnpm test
-
-# Run tests with coverage
-pnpm test:coverage
+# Utilities
+npm run patch-test    # Test patch detection
+npm run kill         # Stop running instances
+npm run reset-state  # Reset application state
 ```
 
-### Production
+## ⚙️ Configuration
 
-```bash
-# Build the application
-pnpm build
+### Environment Variables
 
-# Start the built application
-pnpm start
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `DISCORD_WEBHOOK_URL` | Discord webhook URL for notifications | - | ✅ |
+| `GEMINI_API_KEY` | Google Gemini API key for AI summaries | - | ✅ |
+| `GEMINI_MODEL` | Gemini model to use | `gemini-2.5-flash` | ❌ |
+| `GEMINI_MAX_TOKENS` | Maximum tokens for AI generation | `25000` | ❌ |
+| `GEMINI_TEMPERATURE` | AI generation temperature (0.0-1.0) | `0.3` | ❌ |
+| `GEMINI_TIMEOUT` | API request timeout (ms) | `60000` | ❌ |
+| `GEMINI_MAX_RETRIES` | Maximum retry attempts | `3` | ❌ |
+| `LOL_PATCH_NOTES_URL` | LoL patch notes URL | JP official site | ❌ |
+| `CHECK_INTERVAL_MINUTES` | Monitoring interval in minutes | `60` | ❌ |
+| `LOG_LEVEL` | Logging level (debug/info/warn/error) | `info` | ❌ |
+| `NODE_ENV` | Environment (development/production) | `development` | ❌ |
 
-# Or run directly from source
-node dist/app.js
-```
+### Cost Estimation
 
-### Testing
+With Gemini 2.5 Flash pricing:
+- **Per patch summary**: ~$0.0015 (¥0.23)
+- **Monthly cost**: ~$0.003 (¥0.5) for 2 patches/month
+- **Annual cost**: ~$0.036 (¥5.5)
 
-```bash
-# Run all tests
-pnpm test
+## 🐳 Deployment
 
-# Run tests in watch mode
-pnpm test:watch
-
-# Run tests with UI
-pnpm test:ui
-
-# Generate coverage report
-pnpm test:coverage
-```
-
-## Architecture
-
-### Project Structure
-
-```
-src/
-├── core/
-│   ├── types.ts              # TypeScript type definitions
-│   ├── errors.ts             # Custom error classes
-│   └── constants.ts          # Application constants
-├── config/
-│   ├── index.ts              # Configuration management
-│   └── schemas.ts            # Zod validation schemas
-├── services/
-│   ├── PatchScraper.ts       # LoL patch notes scraping
-│   ├── DiscordNotifier.ts    # Discord webhook notifications
-│   └── PatchMonitor.ts       # Main orchestrator service
-├── utils/
-│   ├── logger.ts             # Structured logging with Pino
-│   ├── storage.ts            # Storage abstraction (file/Redis)
-│   ├── httpClient.ts         # HTTP client with circuit breaker
-│   └── healthCheck.ts        # Health monitoring utilities
-└── app.ts                    # Application entry point
-```
-
-### Key Components
-
-- **PatchScraper**: Monitors LoL website with robust HTML parsing
-- **DiscordNotifier**: Sends rich Discord notifications
-- **PatchMonitor**: Orchestrates the monitoring workflow
-- **Storage**: Abstract storage for state persistence
-- **HttpClient**: Resilient HTTP client with circuit breaker
-- **Logger**: Structured logging with metrics
-
-### Design Patterns
-
-- **Circuit Breaker**: Protects against cascading failures
-- **Retry with Exponential Backoff**: Handles transient failures
-- **Storage Abstraction**: File storage with Redis option
-- **Dependency Injection**: Testable and modular design
-- **Error Handling**: Typed errors with context
-
-## Deployment
-
-### Local/Development
-
-```bash
-# Clone and setup
-git clone <repo>
-cd LoL-Patch-Notifier
-pnpm install
-cp .env.example .env
-# Configure .env
-pnpm dev
-```
-
-### Docker
-
+### Docker Deployment
 ```dockerfile
-# Build image
-docker build -t lol-patch-notifier .
-
-# Run container
-docker run -d \
-  --name lol-patch-notifier \
-  --env-file .env \
-  -v $(pwd)/data:/app/data \
-  lol-patch-notifier
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY dist ./dist
+CMD ["npm", "start"]
 ```
 
-### Serverless (AWS Lambda)
+### Recommended Deployment Options
 
-1. **Build for Lambda**
-   ```bash
-   pnpm build
-   zip -r function.zip dist/ node_modules/ package.json
-   ```
+1. **AWS Lambda + EventBridge** (Recommended)
+   - Serverless with scheduled triggers
+   - Pay-per-execution pricing
+   - Auto-scaling and high availability
 
-2. **Configure Lambda**
-   - Runtime: Node.js 18.x
-   - Handler: `dist/app.handler`
-   - Timeout: 5 minutes
-   - Memory: 256MB
+2. **Docker + Kubernetes CronJob**
+   - Container-based deployment
+   - Resource management and scaling
+   - Built-in monitoring and logging
 
-3. **Set Environment Variables**
-   - Configure all required environment variables
-   - Use AWS Parameter Store for sensitive data
+3. **Platform-as-a-Service**
+   - Render, Fly.io, Railway
+   - Simple deployment with built-in cron
+   - Managed infrastructure
 
-4. **Setup EventBridge**
-   - Create schedule rule: `rate(90 minutes)`
-   - Target: Your Lambda function
+## 🔧 Technology Stack
 
-### PaaS (Render, Fly.io)
+### Core Dependencies
+- **[@google/generative-ai](https://www.npmjs.com/package/@google/generative-ai)** `^0.24.1` - Gemini AI integration
+- **[axios](https://www.npmjs.com/package/axios)** `^1.6.0` - HTTP client with retry logic
+- **[cheerio](https://www.npmjs.com/package/cheerio)** `^1.0.0-rc.12` - Server-side HTML parsing
+- **[winston](https://www.npmjs.com/package/winston)** `^3.11.0` - Structured logging
+- **[node-cron](https://www.npmjs.com/package/node-cron)** `^3.0.3` - Task scheduling
+- **[dotenv](https://www.npmjs.com/package/dotenv)** `^16.3.0` - Environment configuration
 
-```yaml
-# render.yaml
-services:
-  - type: web
-    name: lol-patch-notifier
-    env: node
-    buildCommand: pnpm build
-    startCommand: pnpm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DISCORD_WEBHOOK_URL
-        sync: false  # Set in Render dashboard
-```
+### Development Tools
+- **TypeScript** `^5.2.0` - Type-safe JavaScript
+- **ESLint + Prettier** - Code quality and formatting
+- **Jest** `^29.7.0` - Testing framework
+- **tsx** `^4.20.3` - TypeScript execution and watch mode
 
-## Monitoring
+## 📊 Monitoring & Performance
 
-### Health Check
+### Service Level Indicators (SLIs)
+- **Success Rate**: 99.5% target
+- **Response Time**: <2s for patch detection
+- **Error Rate**: <0.1% for critical operations
+- **Availability**: 99.9% uptime target
 
-The application provides health check endpoints:
+### Logging & Observability
+- **Structured Logging**: Winston with timestamp-based log directories
+- **Error Tracking**: Comprehensive error handling with context
+- **Performance Metrics**: Response times and success rates
+- **Resource Usage**: Designed for 256MB memory footprint
 
-```typescript
-import { performHealthCheck, basicHealthCheck } from './src/utils/healthCheck.js';
-
-// Comprehensive health check
-const health = await performHealthCheck();
-console.log(health.status); // 'healthy' | 'degraded' | 'unhealthy'
-
-// Basic health check
-const basic = await basicHealthCheck();
-console.log(basic.status); // 'ok' | 'error'
-```
-
-### Metrics
-
-Built-in metrics collection:
-
-- Request count and success rate
-- Scraping attempts and success rate
-- Notification attempts and success rate
-- Response times and error rates
-- Circuit breaker state
-- Application uptime
-
-### Logs
-
-Structured JSON logs with:
-
-- Correlation IDs for tracing
-- Context-aware logging
-- Sensitive data redaction
-- Error stack traces
-- Performance metrics
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Webhook not working**
-   ```bash
-   # Test webhook connectivity
-   curl -X POST "$DISCORD_WEBHOOK_URL" \
-     -H "Content-Type: application/json" \
-     -d '{"content": "Test message"}'
-   ```
-
-2. **HTML structure changed**
-   - Check logs for parsing errors
-   - Verify LoL website structure
-   - Fallback selectors should handle most cases
-
-3. **Rate limiting**
-   - Default: 20 requests/hour
-   - Adjust `RATE_LIMIT_PER_HOUR` if needed
-   - Monitor circuit breaker state
-
-4. **Storage issues**
-   - Check file permissions for `data/` directory
-   - Verify Redis connection (if using Redis)
-   - Clear storage: delete `data/last_patch_status.json`
-
-### Debug Mode
-
-```bash
-# Enable debug logging
-LOG_LEVEL=debug pnpm dev
-
-# Check application status
-curl http://localhost:3000/health  # If running with HTTP server
-```
-
-### Reset State
-
-```bash
-# Clear cached state
-rm -f data/last_patch_status.json
-
-# Force notification on next run
-# (Will send notification for current patch)
-```
-
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make changes with tests
-4. Run quality checks: `pnpm lint && pnpm type-check && pnpm test`
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+### Development Standards
+- **Semantic Commits**: Use conventional commit format (`feat:`, `fix:`, `refactor:`)
+- **Semantic Versioning**: Follow semver for releases (MAJOR.MINOR.PATCH)
+- **Code Quality**: ESLint + Prettier for consistent formatting
+- **Testing**: Maintain test coverage for critical functionality
 
-MIT License - see [LICENSE](LICENSE) file for details.
+## 📝 License
 
-## Support
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- 📧 Create an issue for bug reports
-- 💡 Feature requests welcome
-- 📖 Check logs for troubleshooting
-- 🔧 Health check endpoint for monitoring
+## 🔗 Related Links
+
+- [League of Legends Official Patch Notes](https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes)
+- [Discord Webhook Documentation](https://discord.com/developers/docs/resources/webhook)
+- [Google Gemini API Documentation](https://ai.google.dev/docs)
+
+## 📞 Support
+
+If you encounter any issues or have questions:
+
+1. Check the [Issues](https://github.com/yuu1111/LoL-PatchNote-Notifier/issues) page
+2. Review the logs in the `logs/` directory
+3. Ensure your environment variables are correctly configured
+4. Verify your Discord webhook and Gemini API key are valid
+
+---
+
+**Made with ❤️ for the League of Legends community**

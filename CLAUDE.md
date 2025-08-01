@@ -2,223 +2,115 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 重要: 日本語での対話
+このプロジェクトでの対話は**日本語**で行うこと。コミット メッセージ、ログ出力、コメントなども日本語を使用する。
+
 ## Project Overview
 
-This is a League of Legends patch notification system that monitors the Japanese LoL patch notes page and sends Discord notifications when new patches are published. The project is currently in the specification phase with detailed requirements documented in `仕様書.MD`.
+League of Legends Patch Notifier - A TypeScript/Node.js system that monitors the official LoL patch notes website and automatically sends Discord notifications when new patches are released.
 
-## Technology Stack
+**Core Workflow**: Monitor LoL patch notes → Extract patch info & images → Cache locally → Send Discord notification
 
-- **Language**: TypeScript with Node.js (LTS)
-- **Module System**: ES Modules (ESM)
-- **Package Manager**: pnpm (preferred) or yarn
-- **Key Dependencies**:
-  - `axios` - HTTP client for web scraping and Discord webhooks
-  - `cheerio` - Server-side HTML parsing (jQuery-like API)
-  - `dotenv` - Environment variable management
-  - `winston` or `pino` - Structured logging
-  - `node-cron` - Task scheduling
-  - `fs/promises` - Async file I/O for state persistence
+## Architecture & Key Components
 
-## Planned Architecture
-
-The system follows a modular service-oriented architecture:
-
+### Directory Structure
 ```
 src/
-├── app.ts                  # Main application entry point with cron scheduling
-├── config/
-│   └── index.ts            # Environment variable loading and validation
+├── app.ts                  # Main application entry point & scheduler
+├── config/index.ts         # Environment variables & configuration
 ├── services/
-│   ├── PatchScraper.ts     # LoL patch notes scraping logic
-│   └── DiscordNotifier.ts  # Discord webhook notification sender
+│   ├── PatchScraper.ts     # HTML scraping & data extraction
+│   ├── DiscordNotifier.ts  # Discord webhook notifications
+│   └── ImageDownloader.ts  # Image download & caching
 ├── utils/
-│   ├── logger.ts           # Winston logging configuration
-│   └── fileStorage.ts      # JSON file persistence utilities
-└── types/
-    └── index.ts            # TypeScript type definitions
+│   ├── logger.ts           # Winston logging (plain text)
+│   ├── httpClient.ts       # Axios HTTP client with retry logic
+│   └── fileStorage.ts      # JSON file persistence
+└── types/index.ts          # TypeScript type definitions
+
+patches/                    # Data persistence directory
+├── images/                 # Cached patch images
+├── patch-{version}.json    # Individual patch data
+└── last_patch_status.json  # State tracking file
 ```
+
+### Core Services
+- **PatchScraper**: Scrapes LoL official site using Cheerio, extracts titles/URLs/images with fallback selectors
+- **DiscordNotifier**: Sends Discord Embed notifications via webhook with image attachments
+- **ImageDownloader**: Downloads and caches patch images locally for Discord embeds
+- **State Management**: JSON-based persistence to prevent duplicate notifications
 
 ## Development Commands
 
-Once implemented, the project will use these commands:
-
 ```bash
-# Development
-pnpm install              # Install dependencies
-pnpm dev                  # Run with ts-node-dev auto-reload
-pnpm build                # Compile TypeScript to JavaScript
-pnpm start                # Run compiled JavaScript
+# Development with auto-reload
+npm run dev
 
-# Code Quality
-pnpm lint                 # ESLint with TypeScript rules
-pnpm format               # Prettier code formatting
-pnpm test                 # Jest unit and integration tests
+# Type checking & linting
+npm run lint
+npm run format
+npm test
+
+# Production build & run
+npm run build
+npm start
 ```
 
-## Key Design Patterns
+## Technology Stack
 
-### Configuration Management
-- Environment variables loaded via `dotenv`
-- Required config validation at startup
-- Type-safe configuration exports
+**Core Dependencies:**
+- `axios` - HTTP client with retry logic
+- `cheerio` - HTML parsing (jQuery-like API)
+- `winston` - Structured logging (plain text output)
+- `node-cron` - Scheduled monitoring (90-minute intervals)
+- `dotenv` - Environment configuration
+- `jest` - Testing framework
 
-### Error Handling
-- Comprehensive error catching for HTTP requests, HTML parsing, and file I/O
-- Structured logging with winston
-- Graceful degradation for network failures
+**Target Runtime:** Node.js LTS with TypeScript compilation
 
-### State Persistence
-- JSON file storage for tracking last notified patch
-- Async file operations with proper error handling
-- State comparison logic to detect new patches
+## Key Development Considerations
 
-### Web Scraping Strategy
-- Robust CSS selectors using data attributes where possible
-- Timeout configuration for HTTP requests
-- HTML structure change resilience
+### Development Standards
+- **Semantic Commits**: Use conventional commit format (`feat:`, `fix:`, `refactor:`, etc.)
+- **Semantic Versioning**: Follow semver for releases (MAJOR.MINOR.PATCH)
 
-## Environment Variables
+### Environment Configuration
+Required environment variables in `.env`:
+- `DISCORD_WEBHOOK_URL` - Discord webhook for notifications
+- `LOL_PATCH_NOTES_URL` - Target patch notes page (defaults to JP site)
+- `CHECK_INTERVAL_CRON` - Monitoring schedule (default: 90 minutes)
+- `LOG_LEVEL` - Logging verbosity
 
-The system requires these environment variables:
+### Error Handling & Resilience
+- **Rate Limiting**: Max 20 requests/hour to protect Riot servers
+- **Circuit Breaker**: Prevents cascade failures during outages
+- **Retry Logic**: Exponential backoff (1s, 2s, 4s) for HTTP failures
+- **Fallback Selectors**: Multiple CSS selectors for HTML structure changes
+- **State Recovery**: JSON persistence survives application restarts
 
-- `DISCORD_WEBHOOK_URL` - Discord webhook URL (required)
-- `LOL_PATCH_NOTES_URL` - LoL patch notes page URL (optional, has default)
-- `LAST_STATUS_FILE_PATH` - Path for state persistence file (optional)
-- `CHECK_INTERVAL_CRON` - Cron schedule for patch checking (optional)
-- `LOG_LEVEL` - Logging level (optional, defaults to 'info')
+### HTML Scraping Strategy
+The system uses multiple fallback CSS selectors to handle website structure changes:
+1. Data attributes (most stable)
+2. Class names (moderately stable)
+3. Element structure (least stable)
 
-## Discord Integration
+### Testing Approach
+- Unit tests for core services with Jest mocking
+- Integration tests for Discord webhook functionality
+- HTTP request mocking for external dependencies
 
-The system sends rich embed notifications containing:
-- Patch title extracted from LoL website
-- Direct URL to the patch notes
-- Timestamp and custom Discord purple color (#581478)
-- @everyone mention for Discord notifications
+### Performance & Monitoring
+- **SLI Targets**: 99.5% success rate, <2s response time, <0.1% error rate
+- **Monitoring**: Winston logs with structured output for operations
+- **Resource Usage**: Designed for serverless deployment (256MB memory)
 
-## Deployment Considerations
+## Operational Notes
 
-The specification outlines three deployment strategies:
-1. **Serverless** (AWS Lambda, Google Cloud Functions, Vercel)
-2. **Container** (Docker with ECS/GKE)
-3. **PaaS** (Render, Fly.io)
+**Deployment Options:**
+- **Recommended**: AWS Lambda with EventBridge scheduling
+- **Alternative**: Docker container with K8s CronJob
+- **Simple**: PaaS with built-in cron (Render, Fly.io)
 
-For serverless deployments, state persistence needs to be moved from JSON files to cloud storage (S3, Cloud Storage, Redis, DynamoDB).
+**State Management**: Uses local JSON files for simplicity - ensure persistent storage in production deployments.
 
-## Communication Guidelines
-
-**Language Preference**: All conversations with Claude Code should be conducted in Japanese. The project owner prefers Japanese communication for development discussions, feature requests, and technical support.
-
-## Development Guidelines
-
-### Semantic Versioning (SemVer)
-
-This project follows [Semantic Versioning 2.0.0](https://semver.org/) specification:
-
-**Version Format**: `MAJOR.MINOR.PATCH` (e.g., `1.4.2`)
-
-- **MAJOR** version: Incremented for incompatible API changes
-  - Breaking changes to configuration format
-  - Removal of deprecated features
-  - Major architectural changes
-  
-- **MINOR** version: Incremented for backwards-compatible functionality additions
-  - New features (e.g., new notification channels)
-  - New configuration options with sensible defaults
-  - Performance improvements
-  - New optional dependencies
-  
-- **PATCH** version: Incremented for backwards-compatible bug fixes
-  - Bug fixes that don't change functionality
-  - Security patches
-  - Documentation updates
-  - Dependency updates (patch/minor)
-
-**Pre-release versions**: Use suffixes like `-alpha.1`, `-beta.2`, `-rc.1` for pre-release versions.
-
-**Examples**:
-- `1.0.0` → `1.0.1` (Bug fix)
-- `1.0.1` → `1.1.0` (New feature: Redis support)
-- `1.1.0` → `2.0.0` (Breaking: Change config format)
-
-### Semantic Commit Messages
-
-This project follows [Conventional Commits](https://www.conventionalcommits.org/) specification:
-
-**Format**: `<type>(<scope>): <description>`
-
-#### Commit Types
-
-- **feat**: A new feature for the user
-- **fix**: A bug fix for the user
-- **docs**: Documentation changes
-- **style**: Code style changes (formatting, missing semicolons, etc.)
-- **refactor**: Code changes that neither fix bugs nor add features
-- **perf**: Performance improvements
-- **test**: Adding or updating tests
-- **build**: Changes to build system or external dependencies
-- **ci**: Changes to CI configuration files and scripts
-- **chore**: Other changes that don't modify src or test files
-- **revert**: Reverts a previous commit
-
-#### Scopes (Optional)
-
-- **config**: Configuration management
-- **scraper**: Patch scraping functionality
-- **discord**: Discord notification system
-- **storage**: Data persistence layer
-- **http**: HTTP client and networking
-- **logger**: Logging system
-- **monitor**: Patch monitoring orchestration
-
-#### Examples
-
-```bash
-# Feature additions
-feat(discord): add rich embed support for patch notifications
-feat(config): implement Redis storage backend
-feat(scraper): add fallback selectors for patch detection
-
-# Bug fixes
-fix(http): resolve timeout issues with circuit breaker
-fix(config): correct environment variable validation
-fix(discord): handle webhook rate limiting properly
-
-# Documentation
-docs: update README with deployment instructions
-docs(config): add configuration examples for production
-
-# Performance improvements
-perf(scraper): optimize CSS selector performance
-perf(storage): implement caching for repeated reads
-
-# Breaking changes (use ! or BREAKING CHANGE footer)
-feat(config)!: change CHECK_INTERVAL_CRON to CHECK_INTERVAL_MINUTES
-feat!: migrate from file storage to Redis by default
-
-# With detailed breaking change description
-feat(config)!: simplify interval configuration
-
-BREAKING CHANGE: CHECK_INTERVAL_CRON environment variable has been 
-replaced with CHECK_INTERVAL_MINUTES. Update your .env file to use 
-integer minutes instead of cron expressions.
-
-Before: CHECK_INTERVAL_CRON=0 */60 * * *
-After: CHECK_INTERVAL_MINUTES=60
-```
-
-#### Commit Message Rules
-
-1. **Use present tense**: "add feature" not "added feature"
-2. **Use imperative mood**: "fix bug" not "fixes bug"
-3. **Keep first line under 72 characters**
-4. **Capitalize first letter of description**
-5. **No period at the end of the description**
-6. **Include body for complex changes**
-7. **Reference issues**: `fix(scraper): resolve timeout issues (#123)`
-
-#### Automated Versioning
-
-Commits trigger automatic version bumps:
-- `fix:` → PATCH version bump
-- `feat:` → MINOR version bump  
-- `feat!:` or `BREAKING CHANGE:` → MAJOR version bump
+**Discord Integration**: Sends rich embeds with patch titles, URLs, cached images, and timestamp formatting.
