@@ -25,9 +25,16 @@ export class ImageDownloader {
     try {
       Logger.info(`Downloading patch image for version ${patchVersion}: ${imageUrl}`);
       
-      // Generate filename based on URL hash and version
+      // Create patch-specific directory
+      const sanitizedVersion = patchVersion.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const patchDir = path.join(config.storage.patchesDir, `patch_${sanitizedVersion}`);
+      
+      // Generate filename based on URL and version
       const filename = this.generateImageFilename(imageUrl, patchVersion);
-      const localPath = path.join(this.imagesDir, filename);
+      const localPath = path.join(patchDir, filename);
+
+      // Ensure patch directory exists
+      await FileStorage.ensureDirectoryPath(patchDir);
 
       // Check if image already exists
       if (await FileStorage.exists(localPath)) {
@@ -79,13 +86,11 @@ export class ImageDownloader {
     // Extract file extension from URL
     const extension = this.extractFileExtension(imageUrl);
     
-    // Create hash of URL for uniqueness
-    const urlHash = crypto.createHash('md5').update(imageUrl).digest('hex').substring(0, 8);
-    
     // Sanitize version for filename
     const sanitizedVersion = patchVersion.replace(/[^a-zA-Z0-9.-]/g, '_');
     
-    return `patch_${sanitizedVersion}_${urlHash}.${extension}`;
+    // Simple filename: patch_25.15.png
+    return `patch_${sanitizedVersion}.${extension}`;
   }
 
   /**

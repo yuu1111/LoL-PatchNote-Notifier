@@ -13,7 +13,7 @@ import { AppError } from '../types';
  */
 export class FileStorage {
   /**
-   * Ensure directory exists
+   * Ensure directory exists (from file path)
    */
   private static async ensureDirectory(filePath: string): Promise<void> {
     const dir = path.dirname(filePath);
@@ -22,6 +22,18 @@ export class FileStorage {
     } catch {
       await fs.mkdir(dir, { recursive: true });
       Logger.debug(`Created directory: ${dir}`);
+    }
+  }
+
+  /**
+   * Ensure directory exists (direct path)
+   */
+  public static async ensureDirectoryPath(dirPath: string): Promise<void> {
+    try {
+      await fs.access(dirPath);
+    } catch {
+      await fs.mkdir(dirPath, { recursive: true });
+      Logger.debug(`Created directory: ${dirPath}`);
     }
   }
 

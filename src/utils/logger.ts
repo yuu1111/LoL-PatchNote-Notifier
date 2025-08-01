@@ -5,17 +5,26 @@
 
 import winston from 'winston';
 import path from 'path';
-import { config } from '../config';
 
 /**
  * Create winston logger instance
  */
 function createLogger(): winston.Logger {
+  // Import config here to avoid circular dependency and timing issues
+  const { config } = require('../config');
+  
   const logFormat = winston.format.combine(
-    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    winston.format.timestamp({ format: 'HH:mm:ss' }),
     winston.format.errors({ stack: true }),
     winston.format.printf(({ timestamp, level, message, stack }) => {
-      return `[${timestamp}] ${level.toUpperCase()}: ${message}${stack ? '\n' + stack : ''}`;
+      const levelMap: Record<string, string> = {
+        'error': 'ERR',
+        'warn': 'WRN', 
+        'info': 'INF',
+        'debug': 'DBG'
+      };
+      const shortLevel = levelMap[level] || level.substring(0, 3).toUpperCase();
+      return `[${timestamp} ${shortLevel}] ${message}${stack ? '\n' + stack : ''}`;
     })
   );
 
@@ -48,33 +57,39 @@ function createLogger(): winston.Logger {
   });
 }
 
-// Create global logger instance
-const logger = createLogger();
+// Lazy logger instance creation
+let _logger: winston.Logger | null = null;
+function getLogger(): winston.Logger {
+  if (!_logger) {
+    _logger = createLogger();
+  }
+  return _logger;
+}
 
 /**
  * Logger class with typed methods
  */
 export class Logger {
   public static info(message: string, meta?: unknown): void {
-    logger.info(message, meta);
+    getLogger().info(message, meta);
   }
 
   public static error(message: string, error?: Error | unknown): void {
     if (error instanceof Error) {
-      logger.error(message, { error: error.message, stack: error.stack });
+      getLogger().error(message, { error: error.message, stack: error.stack });
     } else {
-      logger.error(message, { error });
+      getLogger().error(message, { error });
     }
   }
 
   public static warn(message: string, meta?: unknown): void {
-    logger.warn(message, meta);
+    getLogger().warn(message, meta);
   }
 
   public static debug(message: string, meta?: unknown): void {
-    logger.debug(message, meta);
+    getLogger().debug(message, meta);
   }
 }
 
 // Export the logger instance for direct use
-export default logger;
+export default getLogger();

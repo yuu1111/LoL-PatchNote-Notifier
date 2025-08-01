@@ -5,7 +5,7 @@
   "main": "dist/app.js",
   "scripts": {
     "start": "node dist/app.js",
-    "dev": "nodemon --exec ts-node src/app.ts",
+    "dev": "tsx watch src/app.ts",
     "build": "tsc",
     "clean": "rimraf dist",
     "prebuild": "npm run clean",
@@ -16,7 +16,10 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "kill": "pwsh -ExecutionPolicy Bypass -File ./Scripts/Kill-LoLPatchNotifier.ps1",
+    "patch-test": "tsx src/patch-tester.ts",
+    "reset-state": "pwsh -ExecutionPolicy Bypass -File ./Scripts/Reset-State.ps1"
   },
   "keywords": [
     "league-of-legends",
@@ -56,6 +59,7 @@
     "rimraf": "^5.0.0",
     "ts-jest": "^29.1.0",
     "ts-node": "^10.9.0",
+    "tsx": "^4.20.3",
     "typescript": "^5.2.0"
   }
 }

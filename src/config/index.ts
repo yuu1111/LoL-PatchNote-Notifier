@@ -32,7 +32,7 @@ export function loadConfig(): AppConfig {
         'https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes',
     },
     monitoring: {
-      checkIntervalCron: process.env.CHECK_INTERVAL_CRON || '0 */90 * * * *',
+      checkIntervalMinutes: parseInt(process.env.CHECK_INTERVAL_MINUTES || '90', 10),
     },    logging: {
       level: process.env.LOG_LEVEL || 'info',
       ...(process.env.LOG_FILE_PATH && { filePath: process.env.LOG_FILE_PATH }),
@@ -54,6 +54,15 @@ export function loadConfig(): AppConfig {
 }
 
 /**
- * Get the current configuration
+ * Get the current configuration (lazy loading)
  */
-export const config = loadConfig();
+let _config: AppConfig | null = null;
+
+export const config = new Proxy({} as AppConfig, {
+  get(target, prop) {
+    if (!_config) {
+      _config = loadConfig();
+    }
+    return _config[prop as keyof AppConfig];
+  }
+});

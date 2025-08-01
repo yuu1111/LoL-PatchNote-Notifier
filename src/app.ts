@@ -1,56 +1,380 @@
 /**
  * League of Legends Patch Notifier
- * Main application entry point
+ * メインアプリケーションエントリーポイント
  */
 
-import dotenv from 'dotenv';
-
-// Load environment variables
-dotenv.config();
+import 'dotenv/config';
+import { PatchScraper } from './services/PatchScraper';
+import { DiscordNotifier } from './services/DiscordNotifier';
+import { ImageDownloader } from './services/ImageDownloader';
+import { StateManager } from './services/StateManager';
+import { Scheduler } from './services/Scheduler';
+import { PatchVersionManager } from './services/PatchVersionManager';
+import { Logger } from './utils/logger';
+import { config } from './config';
+import { AppError, NetworkError, ScrapingError, DiscordError } from './types';
 
 /**
- * Main application class
+ * メインアプリケーションクラス
  */
 export class App {
+  private patchScraper: PatchScraper;
+  private discordNotifier: DiscordNotifier;
+  private imageDownloader: ImageDownloader;
+  private stateManager: StateManager;
+  private scheduler: Scheduler;
+  private versionManager: PatchVersionManager;
+  private isShuttingDown = false;
+
   constructor() {
-    // TODO: Initialize services
+    this.patchScraper = new PatchScraper();
+    this.discordNotifier = new DiscordNotifier();
+    this.imageDownloader = new ImageDownloader();
+    this.stateManager = new StateManager();
+    this.scheduler = new Scheduler();
+    this.versionManager = new PatchVersionManager();
   }
 
   /**
-   * Start the application
+   * アプリケーション開始
    */
   public async start(): Promise<void> {
-    // TODO: Implement application startup logic
-    console.log('LoL Patch Notifier starting...');
+    try {
+      Logger.info('🎮 LoL Patch Notifier を開始しています...');
+
+      // 状態管理システムを初期化
+      await this.stateManager.setRunningState(true);
+      await this.stateManager.validateState();
+
+      // 設定に応じてスケジューラーを開始
+      const useAdvancedDetection = process.env.USE_ADVANCED_PATCH_DETECTION === 'true';
+      
+      if (useAdvancedDetection) {
+        Logger.info('🚀 改良版パッチ検出システムを使用します');
+        this.scheduler.start(() => this.checkForPatchesAdvanced());
+      } else {
+        Logger.info('📋 標準パッチ検出システムを使用します');
+        this.scheduler.start(() => this.checkForPatches());
+      }
+
+      Logger.info(`✅ アプリケーションが正常に開始されました`);
+      Logger.info(`📋 設定: パッチノートURL=${config.lol.patchNotesUrl}`);
+      Logger.info(`🔄 監視間隔: ${config.monitoring.checkIntervalMinutes}分`);
+      Logger.info(`🔍 パッチ検出システム: ${useAdvancedDetection ? '改良版（複数パッチ対応）' : '標準版'}`);
+      
+    } catch (error) {
+      Logger.error('❌ アプリケーションの開始に失敗しました', error);
+      throw error;
+    }
+  }  /**
+   * アプリケーション停止
+   */
+  public async stop(): Promise<void> {
+    if (this.isShuttingDown) {
+      return;
+    }
+
+    this.isShuttingDown = true;
+    
+    try {
+      Logger.info('🛑 LoL Patch Notifier を停止しています...');
+      
+      // スケジューラーを停止
+      this.scheduler.stop();
+      
+      // 実行状態を停止に更新
+      await this.stateManager.setRunningState(false);
+      
+      // バックアップを作成
+      await this.stateManager.createBackup();
+      
+      Logger.info('✅ アプリケーションが正常に停止しました');
+      
+    } catch (error) {
+      Logger.error('❌ アプリケーションの停止中にエラーが発生しました', error);
+    }
   }
 
   /**
-   * Stop the application
+   * 改良されたパッチノート監視の実行（複数パッチ対応）
    */
-  public async stop(): Promise<void> {
-    // TODO: Implement application shutdown logic
-    console.log('LoL Patch Notifier stopping...');
+  public async checkForPatchesAdvanced(): Promise<void> {
+    try {
+      Logger.info('🔍 改良版パッチチェック開始: 複数パッチ対応');
+
+      // 新しいパッチを検出
+      const newPatches = await this.versionManager.checkForNewPatches();
+      
+      if (newPatches.length === 0) {
+        Logger.info('📝 新しいパッチは見つかりませんでした');
+        return;
+      }
+
+      Logger.info(`🆕 ${newPatches.length}個の新しいパッチを処理します`);
+
+      // 各新しいパッチを処理
+      for (const patchNote of newPatches) {
+        await this.processNewPatch(patchNote);
+      }
+
+      Logger.info('✅ 改良版パッチチェック完了');
+      
+    } catch (error) {
+      await this.handleError(error, '改良版パッチノートチェック処理');
+    }
+  }
+
+  /**
+   * 個別の新しいパッチを処理
+   */
+  private async processNewPatch(patchNote: any): Promise<void> {
+    try {
+      Logger.info(`📋 新しいパッチを処理中: ${patchNote.title} (v${patchNote.version})`);
+
+      // 既に通知済みかチェック
+      const isAlreadyNotified = await this.stateManager.isAlreadyNotified(patchNote);
+      
+      if (isAlreadyNotified) {
+        Logger.info(`✅ パッチ ${patchNote.version} は既に通知済みです`);
+        return;
+      }
+
+      // 画像をダウンロード（存在する場合）
+      let localImagePath: string | undefined;
+      if (patchNote.imageUrl) {
+        try {
+          localImagePath = await this.imageDownloader.downloadPatchImage(
+            patchNote.imageUrl,
+            patchNote.version
+          );
+          patchNote.localImagePath = localImagePath;
+          Logger.info(`🖼️ パッチ画像をダウンロード: ${localImagePath}`);
+        } catch (imageError) {
+          Logger.warn('⚠️ パッチ画像のダウンロードに失敗しましたが、通知は継続します', imageError);
+        }
+      }
+
+      // Discordに通知を送信
+      await this.discordNotifier.sendPatchNotification(patchNote, localImagePath);
+      Logger.info(`🚀 パッチ ${patchNote.version} のDiscord通知を送信しました`);
+
+      // 状態を更新（通知完了として記録）
+      await this.stateManager.markNotificationSent(patchNote);
+      
+      // パッチ詳細データを保存
+      await this.stateManager.savePatchDetails(patchNote);
+
+      Logger.info(`✅ パッチ ${patchNote.version} の処理が完了しました`);
+      
+    } catch (error) {
+      Logger.error(`❌ パッチ ${patchNote.version} の処理中にエラー:`, error);
+    }
+  }
+
+  /**
+   * パッチノート監視の実行（レガシー・互換用）
+   */
+  public async checkForPatches(): Promise<void> {
+    try {
+      Logger.info('🔍 新しいパッチノートをチェック中...');
+
+      // 最新のパッチノートを取得
+      const latestPatch = await this.patchScraper.scrapeLatestPatch();
+      
+      if (!latestPatch) {
+        Logger.info('📝 パッチノートが見つかりませんでした');
+        return;
+      }
+
+      Logger.info(`📋 パッチを発見: ${latestPatch.title} (v${latestPatch.version})`);
+
+      // 既に通知済みかチェック
+      const isAlreadyNotified = await this.stateManager.isAlreadyNotified(latestPatch);
+      
+      if (isAlreadyNotified) {
+        Logger.info('✅ このパッチは既に通知済みです');
+        return;
+      }      // 画像をダウンロード（存在する場合）
+      let localImagePath: string | undefined;
+      if (latestPatch.imageUrl) {
+        try {
+          localImagePath = await this.imageDownloader.downloadPatchImage(
+            latestPatch.imageUrl,
+            latestPatch.version
+          );
+          latestPatch.localImagePath = localImagePath;
+          Logger.info(`🖼️ パッチ画像をダウンロード: ${localImagePath}`);
+        } catch (imageError) {
+          Logger.warn('⚠️ パッチ画像のダウンロードに失敗しましたが、通知は継続します', imageError);
+        }
+      }
+
+      // Discordに通知を送信
+      await this.discordNotifier.sendPatchNotification(latestPatch, localImagePath);
+      Logger.info('🚀 Discord通知を送信しました');
+
+      // 状態を更新（通知完了として記録）
+      await this.stateManager.markNotificationSent(latestPatch);
+      
+      // パッチ詳細データを保存
+      await this.stateManager.savePatchDetails(latestPatch);
+
+      Logger.info(`✅ パッチ通知処理が完了しました: ${latestPatch.version}`);
+      
+    } catch (error) {
+      await this.handleError(error, 'パッチノートチェック処理');
+    }
+  }
+
+  /**
+   * エラーハンドリング
+   */
+  private async handleError(error: unknown, context: string): Promise<void> {
+    let errorMessage = `${context}中にエラーが発生しました`;
+    
+    if (error instanceof ScrapingError) {
+      errorMessage = `スクレイピングエラー: ${error.message}`;
+      Logger.error(errorMessage, error);
+    } else if (error instanceof NetworkError) {
+      errorMessage = `ネットワークエラー: ${error.message}`;
+      Logger.error(errorMessage, error);
+    } else if (error instanceof DiscordError) {
+      errorMessage = `Discord通知エラー: ${error.message}`;
+      Logger.error(errorMessage, error);
+    } else if (error instanceof AppError) {
+      errorMessage = `アプリケーションエラー: ${error.message}`;
+      Logger.error(errorMessage, error);
+    } else {
+      Logger.error(errorMessage, error);
+    }
+
+    // 重要なエラーの場合はDiscordに通知
+    try {
+      if (error instanceof ScrapingError || error instanceof DiscordError) {
+        await this.discordNotifier.sendErrorNotification(
+          error instanceof Error ? error : new Error(String(error)),
+          context
+        );
+      }
+    } catch (notificationError) {
+      Logger.error('エラー通知の送信に失敗しました', notificationError);
+    }
+  }  /**
+   * テスト通知の送信
+   */
+  public async sendTestNotification(): Promise<void> {
+    try {
+      Logger.info('🧪 テスト通知を送信中...');
+      await this.discordNotifier.sendTestNotification();
+      Logger.info('✅ テスト通知が正常に送信されました');
+    } catch (error) {
+      Logger.error('❌ テスト通知の送信に失敗しました', error);
+      throw error;
+    }
+  }
+
+  /**
+   * アプリケーションの健全性チェック
+   */
+  public async healthCheck(): Promise<boolean> {
+    try {
+      Logger.info('🔍 健全性チェックを実行中...');
+
+      // Discord Webhook URLの検証
+      if (!DiscordNotifier.validateWebhookUrl(config.discord.webhookUrl)) {
+        Logger.error('❌ Discord Webhook URLが無効です');
+        return false;
+      }
+
+      // 状態管理システムの検証
+      const stateValid = await this.stateManager.validateState();
+      if (!stateValid) {
+        Logger.error('❌ 状態管理システムに問題があります');
+        return false;
+      }
+
+      Logger.info('✅ 健全性チェック完了');
+      return true;
+      
+    } catch (error) {
+      Logger.error('❌ 健全性チェック中にエラーが発生しました', error);
+      return false;
+    }
+  }
+
+  /**
+   * アプリケーションのステータス情報を取得
+   */
+  public getStatus(): {
+    isRunning: boolean;
+    scheduler: any;
+    state: any;
+  } {
+    return {
+      isRunning: !this.isShuttingDown,
+      scheduler: this.scheduler.getStatus(),
+      state: this.stateManager.getCurrentState(),
+    };
+  }
+
+  /**
+   * 手動でパッチチェックを実行
+   */
+  public async executeManualCheck(): Promise<void> {
+    try {
+      Logger.info('🖱️ 手動パッチチェックを実行中...');
+      
+      const useAdvancedDetection = process.env.USE_ADVANCED_PATCH_DETECTION === 'true';
+      
+      if (useAdvancedDetection) {
+        await this.scheduler.executeManually(() => this.checkForPatchesAdvanced());
+      } else {
+        await this.scheduler.executeManually(() => this.checkForPatches());
+      }
+    } catch (error) {
+      Logger.error('❌ 手動パッチチェックに失敗しました', error);
+      throw error;
+    }
   }
 }
 
-// Main execution
+// メイン実行部分
 if (require.main === module) {
   const app = new App();
   
+  // シグナルハンドラー
   process.on('SIGINT', async () => {
-    console.log('Received SIGINT, shutting down gracefully...');
+    Logger.info('📡 SIGINT受信 - アプリケーションを終了中...');
     await app.stop();
     process.exit(0);
   });
 
   process.on('SIGTERM', async () => {
-    console.log('Received SIGTERM, shutting down gracefully...');
+    Logger.info('📡 SIGTERM受信 - アプリケーションを終了中...');
     await app.stop();
     process.exit(0);
   });
 
-  app.start().catch((error) => {
-    console.error('Failed to start application:', error);
+  // 未処理の例外をキャッチ
+  process.on('uncaughtException', async (error) => {
+    Logger.error('💥 未処理の例外が発生しました', error);
+    await app.stop();
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    Logger.error('💥 未処理のPromise拒否が発生しました', { reason, promise });
+    app.stop().then(() => {
+      process.exit(1);
+    }).catch(() => {
+      process.exit(1);
+    });
+  });
+
+  // アプリケーション開始
+  app.start().catch(async (error) => {
+    Logger.error('💥 アプリケーションの開始に失敗しました', error);
+    await app.stop();
     process.exit(1);
   });
 }

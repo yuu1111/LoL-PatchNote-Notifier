@@ -57,7 +57,7 @@ export interface AppConfig {
     patchNotesUrl: string;
   };
   monitoring: {
-    checkIntervalCron: string;
+    checkIntervalMinutes: number;
   };
   logging: {
     level: string;
