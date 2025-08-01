@@ -19,7 +19,19 @@
     "typecheck": "tsc --noEmit",
     "kill": "pwsh -ExecutionPolicy Bypass -File ./Scripts/Kill-LoLPatchNotifier.ps1",
     "patch-test": "tsx src/patch-tester.ts",
-    "reset-state": "pwsh -ExecutionPolicy Bypass -File ./Scripts/Reset-State.ps1"
+    "reset-state": "pwsh -ExecutionPolicy Bypass -File ./Scripts/Reset-State.ps1",
+    "release": "bash ./Scripts/release.sh",
+    "release:patch": "bash ./Scripts/release.sh patch",
+    "release:minor": "bash ./Scripts/release.sh minor",
+    "release:major": "bash ./Scripts/release.sh major",
+    "release:dry-run": "bash ./Scripts/release.sh patch --dry-run",
+    "release:win": "pwsh -ExecutionPolicy Bypass -File ./Scripts/release.ps1",
+    "release:win:patch": "pwsh -ExecutionPolicy Bypass -File ./Scripts/release.ps1 patch",
+    "release:win:minor": "pwsh -ExecutionPolicy Bypass -File ./Scripts/release.ps1 minor",
+    "release:win:major": "pwsh -ExecutionPolicy Bypass -File ./Scripts/release.ps1 major",
+    "release:win:dry-run": "pwsh -ExecutionPolicy Bypass -File ./Scripts/release.ps1 patch -DryRun",
+    "changelog": "git log --oneline --decorate --graph --since=\"1 month ago\"",
+    "version:check": "node -p \"require('./package.json').version\""
   },
   "keywords": [
     "league-of-legends",
