@@ -4,7 +4,7 @@
  */
 
 import path from 'path';
-import crypto from 'crypto';
+// import crypto from 'crypto'; // 現在未使用
 import { httpClient } from '../utils/httpClient';
 import { FileStorage } from '../utils/fileStorage';
 import { Logger } from '../utils/logger';

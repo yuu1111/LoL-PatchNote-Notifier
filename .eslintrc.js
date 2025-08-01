@@ -19,7 +19,7 @@ module.exports = {
     jest: true,
     es2022: true,
   },
-  ignorePatterns: ['.eslintrc.js', 'dist/', 'node_modules/', '*.js'],
+  ignorePatterns: ['.eslintrc.js', 'dist/', 'node_modules/', '*.js', 'tests/'],
   rules: {
     // TypeScript specific rules - より厳格な設定
     '@typescript-eslint/no-explicit-any': 'error',

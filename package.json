@@ -18,7 +18,7 @@
     "test:coverage": "jest --coverage",
     "typecheck": "tsc --noEmit",
     "kill": "pwsh -ExecutionPolicy Bypass -File ./Scripts/Kill-LoLPatchNotifier.ps1",
-    "patch-test": "tsx src/patch-tester.ts",
+    "patch-test": "tsx tests/patch-tester.ts",
     "reset-state": "pwsh -ExecutionPolicy Bypass -File ./Scripts/Reset-State.ps1",
     "release": "bash ./Scripts/release.sh",
     "release:patch": "bash ./Scripts/release.sh patch",
