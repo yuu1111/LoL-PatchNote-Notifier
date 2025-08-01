@@ -18,28 +18,14 @@ export class DiscordNotifier {
   }
 
   /**
-   * Send patch notification to Discord (2段階送信: エンベッド → 画像)
+   * Send patch notification to Discord (エンベッド内画像表示)
    */
   public async sendPatchNotification(patchNote: PatchNote, localImagePath?: string): Promise<void> {
     try {
       Logger.info(`Sending Discord notification for patch: ${patchNote.title}`);
 
-      // Step 1: エンベッド情報を先に送信
-      await this.sendEmbedMessage(patchNote);
-      Logger.info(`📋 エンベッド情報を送信完了: ${patchNote.version}`);
-
-      // Step 2: 画像が利用可能な場合は別途送信
-      if (localImagePath) {
-        try {
-          // 少し間隔を空けて自然な順序で表示されるようにする
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          await this.sendImageOnly(localImagePath, patchNote.version);
-          Logger.info(`🖼️ パッチ画像を追加送信完了: ${patchNote.version}`);
-        } catch (imageError) {
-          Logger.warn(`⚠️ パッチ画像の送信に失敗しましたが、エンベッドは送信済み: ${imageError}`);
-        }
-      }
+      // エンベッド内に画像を含めて送信
+      await this.sendEmbedWithImage(patchNote, localImagePath);
 
       Logger.info(`✅ Discord通知が完了しました: ${patchNote.version}`);
 
@@ -56,80 +42,49 @@ export class DiscordNotifier {
   }
 
   /**
-   * エンベッドメッセージのみを送信
+   * エンベッド内に画像を含めて送信
    */
-  private async sendEmbedMessage(patchNote: PatchNote): Promise<void> {
-    const embed = this.createPatchEmbed(patchNote, false); // 画像URLは含めない
+  private async sendEmbedWithImage(patchNote: PatchNote, localImagePath?: string): Promise<void> {
+    // ローカル画像があれば、一時的にURLとして設定（後でattachment://で参照）
+    let imageUrl = patchNote.imageUrl;
+    let hasLocalImage = false;
+
+    if (localImagePath) {
+      try {
+        await fs.access(localImagePath);
+        imageUrl = `attachment://patch_${patchNote.version}.jpg`;
+        hasLocalImage = true;
+        Logger.info(`🖼️ ローカル画像をエンベッドに添付: ${localImagePath}`);
+      } catch (error) {
+        Logger.warn(`⚠️ ローカル画像アクセス失敗、オンライン画像を使用: ${error}`);
+      }
+    }
+
+    // 一時的にpatchNoteのimageUrlを更新してエンベッドを作成
+    const originalImageUrl = patchNote.imageUrl;
+    if (hasLocalImage && imageUrl) {
+      patchNote.imageUrl = imageUrl;
+    }
+
+    const embed = this.createPatchEmbed(patchNote, true); // 画像URLを含める
+    
+    // 元のimageUrlを復元
+    if (originalImageUrl !== undefined) {
+      patchNote.imageUrl = originalImageUrl;
+    }
+
     const payload: DiscordWebhookPayload = {
       content: '🎮 **新しいパッチノートが公開されました！**',
       embeds: [embed],
     };
 
-    const response = await httpClient.post(this.webhookUrl, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (response.status < 200 || response.status >= 300) {
-      throw new DiscordError(`Discord embed message failed: HTTP ${response.status}`, response.status);
-    }
-  }
-
-  /**
-   * 画像のみを単独で送信
-   */
-  private async sendImageOnly(localImagePath: string, version: string): Promise<void> {
-    try {
-      // ファイルの存在確認
-      await fs.access(localImagePath);
-      
+    if (hasLocalImage && localImagePath) {
+      // 添付ファイル付きで送信
       const formData = new FormData();
       
-      // 画像ファイルを添付（コンテンツやエンベッドなし）
-      const imageBuffer = await fs.readFile(localImagePath);
-      const filename = `patch_${version}.jpg`;
-      formData.append('files[0]', imageBuffer, {
-        filename,
-        contentType: 'image/jpeg'
-      });
-
-      // 画像のみを送信
-      const response = await httpClient.post(this.webhookUrl, formData, {
-        headers: {
-          ...formData.getHeaders(),
-        },
-      });
-
-      if (response.status < 200 || response.status >= 300) {
-        throw new DiscordError(`Discord image upload failed: HTTP ${response.status}`, response.status);
-      }
-
-    } catch (error) {
-      Logger.error(`画像送信エラー: ${error}`);
-      throw error;
-    }
-  }
-
-  /**
-   * 添付ファイル付きでDiscord通知を送信（レガシー）
-   */
-  private async sendWithAttachment(patchNote: PatchNote, localImagePath: string): Promise<void> {
-    try {
-      // ファイルの存在確認
-      await fs.access(localImagePath);
-
-      const formData = new FormData();
-      const embed = this.createPatchEmbed(patchNote, false); // 画像URLは含めない
-
-      const payload: DiscordWebhookPayload = {
-        content: '🎮 **新しいパッチノートが公開されました！**',
-        embeds: [embed],
-      };
-
       // JSONペイロードをフォームデータに追加
       formData.append('payload_json', JSON.stringify(payload));
-
+      
       // 画像ファイルを添付
       const imageBuffer = await fs.readFile(localImagePath);
       const filename = `patch_${patchNote.version}.jpg`;
@@ -138,7 +93,6 @@ export class DiscordNotifier {
         contentType: 'image/jpeg'
       });
 
-      // multipart/form-dataでリクエスト送信
       const response = await httpClient.post(this.webhookUrl, formData, {
         headers: {
           ...formData.getHeaders(),
@@ -149,35 +103,23 @@ export class DiscordNotifier {
         throw new DiscordError(`Discord webhook failed: HTTP ${response.status}`, response.status);
       }
 
-      Logger.info(`📎 パッチ画像を添付ファイルとして送信しました: ${filename}`);
+      Logger.info(`📎 エンベッド内にローカル画像を埋め込み送信完了: ${filename}`);
+    } else {
+      // 通常のJSON送信（オンライン画像またはデフォルト画像）
+      const response = await httpClient.post(this.webhookUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    } catch (error) {
-      Logger.warn(`⚠️ 添付ファイル送信に失敗、通常送信にフォールバック: ${error}`);
-      // 添付ファイル送信に失敗した場合は通常送信にフォールバック
-      await this.sendWithoutAttachment(patchNote);
+      if (response.status < 200 || response.status >= 300) {
+        throw new DiscordError(`Discord embed message failed: HTTP ${response.status}`, response.status);
+      }
+
+      Logger.info(`📋 エンベッドメッセージを送信完了`);
     }
   }
 
-  /**
-   * 添付ファイルなしでDiscord通知を送信
-   */
-  private async sendWithoutAttachment(patchNote: PatchNote): Promise<void> {
-    const embed = this.createPatchEmbed(patchNote, true); // エンベッド画像を含める
-    const payload: DiscordWebhookPayload = {
-      content: '🎮 **新しいパッチノートが公開されました！**',
-      embeds: [embed],
-    };
-
-    const response = await httpClient.post(this.webhookUrl, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (response.status < 200 || response.status >= 300) {
-      throw new DiscordError(`Discord webhook failed: HTTP ${response.status}`, response.status);
-    }
-  }
 
   /**
    * Create Discord embed for patch note
