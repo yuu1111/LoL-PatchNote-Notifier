@@ -24,14 +24,14 @@ function createLogger(): winston.Logger {
         debug: 'DBG',
       };
       const shortLevel = levelMap[level] || level.substring(0, 3).toUpperCase();
-      const logLine = `[${timestamp} ${shortLevel}] ${message}`;
+      const logLine = `[${timestamp}  ${shortLevel}] ${message}`;
       return stack ? `${logLine}\n${stack}` : logLine;
     })
   );
 
   const transports: winston.transport[] = [
     new winston.transports.Console({
-      format: winston.format.combine(winston.format.colorize(), logFormat),
+      format: winston.format.combine(logFormat, winston.format.colorize({ all: true })),
     }),
   ];
 

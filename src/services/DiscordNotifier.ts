@@ -171,11 +171,9 @@ export class DiscordNotifier {
         });
       }
 
-      // 主要な変更点を追加（最大5つまで）
+      // 主要な変更点を追加（3〜5個）
       if (summary.keyChanges && summary.keyChanges.length > 0) {
-        const changes = summary.keyChanges
-          .slice(0, 5)
-          .map((change, index) => `${index + 1}. ${change}`);
+        const changes = summary.keyChanges.map((change, index) => `${index + 1}. ${change}`);
         const changesText = changes.join('\n\n');
 
         fields.push({
@@ -194,7 +192,8 @@ export class DiscordNotifier {
 
         fields.push({
           name: '✨ 新機能',
-          value: featuresText.length > 1024 ? `${featuresText.substring(0, 1021)}...` : featuresText,
+          value:
+            featuresText.length > 1024 ? `${featuresText.substring(0, 1021)}...` : featuresText,
           inline: false,
         });
       }

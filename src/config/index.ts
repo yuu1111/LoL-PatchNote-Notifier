@@ -18,22 +18,21 @@ function validateEnvironment(): void {
 }
 
 /**
- * Generate session-based log filename - cached per session
+ * Generate session-based log filename - generated once at application startup
  */
-let _sessionLogFilename: string | null = null;
+const SESSION_START_TIME = new Date();
+const SESSION_LOG_FILENAME = (() => {
+  const year = SESSION_START_TIME.getFullYear();
+  const month = String(SESSION_START_TIME.getMonth() + 1).padStart(2, '0');
+  const day = String(SESSION_START_TIME.getDate()).padStart(2, '0');
+  const hour = String(SESSION_START_TIME.getHours()).padStart(2, '0');
+  const minute = String(SESSION_START_TIME.getMinutes()).padStart(2, '0');
+
+  return `logs/${year}-${month}-${day}-${hour}-${minute}.log`;
+})();
+
 function generateLogFilename(): string {
-  if (!_sessionLogFilename) {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hour = String(now.getHours()).padStart(2, '0');
-    const minute = String(now.getMinutes()).padStart(2, '0');
-    
-    _sessionLogFilename = `logs/${year}-${month}-${day}-${hour}-${minute}.log`;
-  }
-  
-  return _sessionLogFilename;
+  return SESSION_LOG_FILENAME;
 }
 
 /**
