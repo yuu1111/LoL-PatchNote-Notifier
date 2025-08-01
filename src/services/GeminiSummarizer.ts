@@ -11,8 +11,8 @@ import { FileStorage } from '../utils/fileStorage';
 import path from 'path';
 
 export class GeminiSummarizer {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
+  private readonly genAI: GoogleGenerativeAI;
+  private readonly model: any;
   private readonly maxRetries: number;
   private readonly requestTimeout: number;
 
@@ -184,7 +184,7 @@ ${patchNote.content}
     try {
       // JSONブロックを抽出
       const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonMatch && jsonMatch[1]) {
+      if (jsonMatch?.[1]) {
         const jsonData = JSON.parse(jsonMatch[1]);
         return {
           version,
@@ -210,7 +210,7 @@ ${patchNote.content}
       // パースに失敗した場合のフォールバック
       return {
         version,
-        summary: response.substring(0, 500) + '...', // 最初の500文字を使用
+        summary: `${response.substring(0, 500)  }...`, // 最初の500文字を使用
         keyChanges: ['詳細は元のパッチノートをご確認ください'],
         generatedAt: new Date(),
         model: config.gemini.model,

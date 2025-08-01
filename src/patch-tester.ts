@@ -55,7 +55,7 @@ class PatchTester {
 
       // パッチノートオブジェクトを作成
       const patchNote = {
-        version: version,
+        version,
         title: `パッチノート ${version}`,
         url: patchUrl,
         publishedAt: new Date(),
@@ -138,7 +138,7 @@ class PatchTester {
       for (let i = 0; i < count; i++) {
         versions.push(`${major}.${minor}`);
         minor--;
-        if (minor < 1) break; // 25.1より前は考慮しない
+        if (minor < 1) {break;} // 25.1より前は考慮しない
       }
     }
 

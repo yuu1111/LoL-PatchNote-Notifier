@@ -12,7 +12,7 @@ export class Scheduler {
   private isRunning = false;
   private lastExecutionTime: Date | null = null;
   private totalExecutions = 0;
-  private intervalMinutes: number;
+  private readonly intervalMinutes: number;
 
   constructor() {
     this.intervalMinutes = config.monitoring.checkIntervalMinutes;

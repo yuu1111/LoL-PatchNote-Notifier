@@ -60,7 +60,7 @@ export class ImageDownloader {
       const imageBuffer =
         response.data instanceof ArrayBuffer
           ? Buffer.from(response.data)
-          : (response.data as Buffer);
+          : (response.data);
 
       // Validate image data
       if (imageBuffer.length === 0) {

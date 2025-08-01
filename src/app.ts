@@ -254,7 +254,7 @@ export class App {
   public getStatus(): {
     isRunning: boolean;
     scheduler: object;
-    state: object;
+    state: object | null;
   } {
     return {
       isRunning: !this.isShuttingDown,
