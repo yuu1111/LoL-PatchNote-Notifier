@@ -11,6 +11,7 @@ import path from 'path';
  */
 function createLogger(): winston.Logger {
   // Import config here to avoid circular dependency and timing issues
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
   const { config } = require('../config');
 
   const logFormat = winston.format.combine(
@@ -23,9 +24,9 @@ function createLogger(): winston.Logger {
         info: 'INF',
         debug: 'DBG',
       };
-      const shortLevel = levelMap[level] || level.substring(0, 3).toUpperCase();
-      const logLine = `[${timestamp}  ${shortLevel}] ${message}`;
-      return stack ? `${logLine}\n${stack}` : logLine;
+      const shortLevel = levelMap[level] ?? level.substring(0, 3).toUpperCase();
+      const logLine = `[${String(timestamp)}  ${shortLevel}] ${String(message)}`;
+      return stack ? `${logLine}\n${String(stack)}` : logLine;
     })
   );
 
@@ -36,11 +37,14 @@ function createLogger(): winston.Logger {
   ];
 
   // Add file transport if configured
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   if (config.logging.filePath) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
     const _logDir = path.dirname(config.logging.filePath); // ディレクトリ情報（将来的に使用予定）
 
     transports.push(
       new winston.transports.File({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         filename: config.logging.filePath,
         format: logFormat,
         maxsize: 5242880, // 5MB
@@ -50,6 +54,7 @@ function createLogger(): winston.Logger {
   }
 
   return winston.createLogger({
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     level: config.logging.level,
     transports,
     exitOnError: false,
@@ -73,11 +78,13 @@ export class Logger {
     getLogger().info(message, meta);
   }
 
-  public static error(message: string, error?: Error | unknown): void {
+  public static error(message: string, error?: unknown): void {
     if (error instanceof Error) {
       getLogger().error(message, { error: error.message, stack: error.stack });
+    } else if (error !== undefined) {
+      getLogger().error(message, { error: String(error) });
     } else {
-      getLogger().error(message, { error });
+      getLogger().error(message);
     }
   }
 

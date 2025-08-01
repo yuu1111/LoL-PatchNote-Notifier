@@ -66,7 +66,7 @@ export class PatchScraper {
       const detailImageUrl = this.extractDetailedImageUrl($);
 
       Logger.info(
-        `詳細情報取得完了: コンテンツ=${content ? `${content.length}文字` : 'なし'}, 画像=${detailImageUrl || 'なし'}`
+        `詳細情報取得完了: コンテンツ=${content ? `${content.length}文字` : 'なし'}, 画像=${detailImageUrl ?? 'なし'}`
       );
 
       return {
@@ -129,7 +129,7 @@ export class PatchScraper {
     // 最初に1920x1080の画像を探す
     for (let i = 0; i < allImages.length; i++) {
       const img = allImages.eq(i);
-      const src = img.attr('src') || img.attr('data-src');
+      const src = img.attr('src') ?? img.attr('data-src');
 
       if (src && this.isValidImageUrl(src)) {
         // 1920x1080の画像を優先
@@ -143,7 +143,7 @@ export class PatchScraper {
     // 次に高解像度画像を探す（1600x945など）
     for (let i = 0; i < allImages.length; i++) {
       const img = allImages.eq(i);
-      const src = img.attr('src') || img.attr('data-src');
+      const src = img.attr('src') ?? img.attr('data-src');
 
       if (src && this.isValidImageUrl(src)) {
         // Sanity CDNの高解像度画像
@@ -171,7 +171,7 @@ export class PatchScraper {
     for (const selector of detailImageSelectors) {
       const imgElement = $(selector).first();
       if (imgElement.length > 0) {
-        const src = imgElement.attr('src') || imgElement.attr('data-src');
+        const src = imgElement.attr('src') ?? imgElement.attr('data-src');
         if (src && this.isValidImageUrl(src)) {
           Logger.debug(`詳細ページから画像URL取得 (セレクター: ${selector}): ${src}`);
           return src;
@@ -225,7 +225,7 @@ export class PatchScraper {
         throw new ScrapingError('Could not find patch note container');
       }
 
-      Logger.debug(`Found patch element with selector: ${patchElement.get(0)?.tagName}`);
+      Logger.debug(`Found patch element with tag: ${patchElement.length > 0 ? patchElement.prop('tagName') ?? 'unknown' : 'none'}`);
       Logger.debug(`Patch element classes: ${patchElement.attr('class')}`);
       Logger.debug(`Patch element children: ${patchElement.children().length}`);
       Logger.debug(`Patch element href: ${patchElement.attr('href')}`);
@@ -256,7 +256,7 @@ export class PatchScraper {
       }
 
       const imageUrl = this.extractImageUrl($, patchElement);
-      Logger.debug(`Image URL extracted: ${imageUrl || 'None found'}`);
+      Logger.debug(`Image URL extracted: ${imageUrl ?? 'None found'}`);
       const version = this.extractVersion(title);
 
       const normalizedUrl = this.normalizeUrl(url);
@@ -293,7 +293,7 @@ export class PatchScraper {
   } /**
    * Find element using fallback selectors
    */
-  private findElement($: cheerio.CheerioAPI, selectors: string[]): cheerio.Cheerio<any> | null {
+  private findElement($: cheerio.CheerioAPI, selectors: string[]): cheerio.Cheerio<cheerio.Element> | null {
     for (const selector of selectors) {
       try {
         const elements = $(selector);
@@ -312,7 +312,7 @@ export class PatchScraper {
   /**
    * Extract patch note title
    */
-  private extractTitle($: cheerio.CheerioAPI, container: cheerio.Cheerio<any>): string | null {
+  private extractTitle($: cheerio.CheerioAPI, container: cheerio.Cheerio<cheerio.Element>): string | null {
     // First try within the container
     for (const selector of this.selectors.title) {
       const titleElement = container.find(selector).first();
@@ -363,7 +363,7 @@ export class PatchScraper {
   } /**
    * Extract patch note URL
    */
-  private extractUrl($: cheerio.CheerioAPI, container: cheerio.Cheerio<any>): string | null {
+  private extractUrl($: cheerio.CheerioAPI, container: cheerio.Cheerio<cheerio.Element>): string | null {
     // Check if container itself is an <a> tag
     if (container.is('a')) {
       const href = container.attr('href');
@@ -406,7 +406,7 @@ export class PatchScraper {
   /**
    * Extract patch note image URL
    */
-  private extractImageUrl($: cheerio.CheerioAPI, container: cheerio.Cheerio<any>): string | null {
+  private extractImageUrl($: cheerio.CheerioAPI, container: cheerio.Cheerio<cheerio.Element>): string | null {
     Logger.debug('Searching for images in container...');
 
     // First try within the container
@@ -414,7 +414,7 @@ export class PatchScraper {
       Logger.debug(`Trying image selector: ${selector}`);
       const imgElement = container.find(selector).first();
       if (imgElement.length > 0) {
-        const src = imgElement.attr('src') || imgElement.attr('data-src');
+        const src = imgElement.attr('src') ?? imgElement.attr('data-src');
         Logger.debug(`Found image element with src: ${src}`);
         if (src && this.isValidImageUrl(src)) {
           Logger.debug(`Valid image URL found: ${src}`);
@@ -430,7 +430,7 @@ export class PatchScraper {
     Logger.debug(`Total images in container: ${allImages.length}`);
     allImages.each((i, img) => {
       const $img = $(img);
-      const src = $img.attr('src') || $img.attr('data-src');
+      const src = $img.attr('src') ?? $img.attr('data-src');
       Logger.debug(`  Image ${i}: src="${src}", classes="${$img.attr('class')}"`);
     });
 
@@ -439,7 +439,7 @@ export class PatchScraper {
     for (const selector of this.selectors.image) {
       const imgElement = $(selector).first();
       if (imgElement.length > 0) {
-        const src = imgElement.attr('src') || imgElement.attr('data-src');
+        const src = imgElement.attr('src') ?? imgElement.attr('data-src');
         if (src && this.isValidImageUrl(src) && (src.includes('patch') || src.includes('news'))) {
           Logger.debug(`Valid fallback image URL found: ${src}`);
           return src;

@@ -39,7 +39,7 @@ export class StateManager {
 
         this.currentState = state;
         Logger.info(
-          `状態を正常に読み込み: 最終チェック=${state.lastCheckedPatch?.version || 'なし'}`
+          `状態を正常に読み込み: 最終チェック=${state.lastCheckedPatch?.version ?? 'なし'}`
         );
         return state;
       }
@@ -179,11 +179,11 @@ export class StateManager {
       const patchDir = path.join(this.patchesDir, `patch_${sanitizedVersion}`);
       const jsonFilePath = path.join(patchDir, `patch_${sanitizedVersion}.json`);
 
-      const patchData = await FileStorage.readJson<any>(jsonFilePath);
+      const patchData = await FileStorage.readJson<Record<string, unknown>>(jsonFilePath);
 
       if (patchData) {
         // 日付文字列を Date オブジェクトに変換
-        if (patchData.publishedAt) {
+        if (typeof patchData.publishedAt === 'string') {
           patchData.publishedAt = new Date(patchData.publishedAt);
         }
 
@@ -243,12 +243,12 @@ export class StateManager {
   /**
    * 古いパッチデータのクリーンアップ
    */
-  public async cleanupOldPatchData(maxAge: number = 90 * 24 * 60 * 60 * 1000): Promise<void> {
+  public cleanupOldPatchData(maxAge: number = 90 * 24 * 60 * 60 * 1000): void {
     try {
       Logger.info('古いパッチデータのクリーンアップを開始');
       // 実装は将来のバージョンで追加
       Logger.debug(`${maxAge}ms より古いファイルをクリーンアップ対象とします`);
-    } catch (error) {
+    } catch (error: unknown) {
       Logger.error('パッチデータのクリーンアップに失敗しました', error);
     }
   }

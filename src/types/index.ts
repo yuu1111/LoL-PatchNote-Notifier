@@ -59,6 +59,17 @@ export interface GeminiConfig {
   maxRetries: number;
 }
 
+// Gemini API レスポンス型
+export interface GeminiResponse {
+  response: {
+    text: () => string;
+  };
+}
+
+export interface GeminiResult {
+  response: GeminiResponse['response'];
+}
+
 export interface GeminiSummary {
   version: string;
   summary: string;

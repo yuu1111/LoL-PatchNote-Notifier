@@ -113,13 +113,13 @@ export class ImageDownloader {
   /**
    * Clean up old cached images (optional utility)
    */
-  public async cleanupOldImages(maxAge: number = 30 * 24 * 60 * 60 * 1000): Promise<void> {
+  public cleanupOldImages(maxAge: number = 30 * 24 * 60 * 60 * 1000): void {
     try {
       Logger.info('Starting cleanup of old cached images...');
       // Implementation would go here to clean files older than maxAge
       // For now, just log the intent
       Logger.debug(`Would clean images older than ${maxAge}ms`);
-    } catch (error) {
+    } catch (error: unknown) {
       Logger.error('Failed to cleanup old images', error);
     }
   }

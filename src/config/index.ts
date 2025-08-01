@@ -21,7 +21,7 @@ function validateEnvironment(): void {
  * Generate session-based log filename - generated once at application startup
  */
 const SESSION_START_TIME = new Date();
-const SESSION_LOG_FILENAME = (() => {
+const SESSION_LOG_FILENAME = ((): string => {
   const year = SESSION_START_TIME.getFullYear();
   const month = String(SESSION_START_TIME.getMonth() + 1).padStart(2, '0');
   const day = String(SESSION_START_TIME.getDate()).padStart(2, '0');

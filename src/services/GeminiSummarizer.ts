@@ -3,8 +3,8 @@
  * パッチノート内容を分析し、分かりやすい日本語で要約する
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { PatchNote, GeminiSummary } from '../types';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { PatchNote, GeminiSummary, GeminiResult } from '../types';
 import { config } from '../config';
 import { Logger } from '../utils/logger';
 import { FileStorage } from '../utils/fileStorage';
@@ -12,7 +12,7 @@ import path from 'path';
 
 export class GeminiSummarizer {
   private readonly genAI: GoogleGenerativeAI;
-  private readonly model: any;
+  private readonly model: GenerativeModel;
   private readonly maxRetries: number;
   private readonly requestTimeout: number;
 
@@ -68,7 +68,7 @@ export class GeminiSummarizer {
 
       Logger.info(`パッチノート要約を生成完了: ${patchNote.version}`);
       return summary;
-    } catch (error) {
+    } catch (error: unknown) {
       Logger.error(`Gemini要約生成エラー (${patchNote.version}):`, error);
       return null;
     }
@@ -88,9 +88,9 @@ export class GeminiSummarizer {
         const result = await Promise.race([
           this.model.generateContent(prompt),
           this.createTimeoutPromise(),
-        ]);
+        ]) as GeminiResult;
 
-        const response = await result.response;
+        const response = result.response;
         const text = response.text();
 
         if (!text || text.trim().length === 0) {
@@ -154,7 +154,7 @@ League of Legends パッチノート ${patchNote.version} の内容を分析し�
 2. **品質重視**: 些細な変更は省略し、プレイヤーにとって本当に重要な情報のみを含める
 3. **分かりやすさ**: 新システムや複雑な計算式には説明を加える。ただし以下は説明不要：
    - サモナースペル（スマイト、フラッシュ、イグナイト等）
-   - 基本用語（ガンク、ロール、レーン、CS、バロン、ドラゴン等）  
+   - 基本用語（ガンク、ロール、レーン、CS、バロン、ドラゴン等）
    - チャンピオン名、アイテム名
    - 基本ステータス（AD、AP、HP、マナ等）
 4. **影響度評価**: 各変更がゲームプレイやメタに与える実際の影響を重視
@@ -192,7 +192,7 @@ League of Legends パッチノート ${patchNote.version} の内容を分析し�
 }
 \`\`\`
 
-**注意事項**: 
+**注意事項**:
 - 本当に重要な変更とスキン・コンテンツ情報のみに集中してください
 - 「〇〇アイテム恩恵チャンピオンの調整」のような無理やりの分類は避けてください
 - 各チャンピオンの調整は独立した変更として扱ってください
@@ -213,7 +213,7 @@ ${patchNote.content}
 
 keyChangesには、チャンピオンの重要な調整、アイテムの大きな変更、新機能、システム変更を区別なく含めて、パッチ全体で最も重要な3〜5つの変更として整理してください。
 
-**重要**: 
+**重要**:
 - 無理やり項目数を合わせる必要はありません
 - 関連のない複数の変更を1つの項目にまとめてはいけません
 - 実際に独立した変更は個別の項目として扱ってください
@@ -231,33 +231,33 @@ keyChangesには、チャンピオンの重要な調整、アイテムの大き�
       // JSONブロックを抽出
       const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
       if (jsonMatch?.[1]) {
-        const jsonData = JSON.parse(jsonMatch[1]);
+        const jsonData = JSON.parse(jsonMatch[1]) as Record<string, unknown>;
         return {
           version,
-          summary: jsonData.summary || '',
-          keyChanges: jsonData.keyChanges || [],
-          newFeatures: jsonData.newFeatures || [],
-          importantBugFixes: jsonData.importantBugFixes || [],
-          skinContent: jsonData.skinContent || [],
+          summary: typeof jsonData.summary === 'string' ? jsonData.summary : '',
+          keyChanges: Array.isArray(jsonData.keyChanges) ? jsonData.keyChanges.filter((item): item is string => typeof item === 'string') : [],
+          newFeatures: Array.isArray(jsonData.newFeatures) ? jsonData.newFeatures.filter((item): item is string => typeof item === 'string') : [],
+          importantBugFixes: Array.isArray(jsonData.importantBugFixes) ? jsonData.importantBugFixes.filter((item): item is string => typeof item === 'string') : [],
+          skinContent: Array.isArray(jsonData.skinContent) ? jsonData.skinContent.filter((item): item is string => typeof item === 'string') : [],
           generatedAt: new Date(),
           model: config.gemini.model,
         };
       }
 
       // JSONブロックが見つからない場合、直接JSONとして解析を試行
-      const jsonData = JSON.parse(response);
+      const jsonData = JSON.parse(response) as Record<string, unknown>;
       return {
         version,
-        summary: jsonData.summary || '',
-        keyChanges: jsonData.keyChanges || [],
-        newFeatures: jsonData.newFeatures || [],
-        importantBugFixes: jsonData.importantBugFixes || [],
-        skinContent: jsonData.skinContent || [],
+        summary: typeof jsonData.summary === 'string' ? jsonData.summary : '',
+        keyChanges: Array.isArray(jsonData.keyChanges) ? jsonData.keyChanges.filter((item): item is string => typeof item === 'string') : [],
+        newFeatures: Array.isArray(jsonData.newFeatures) ? jsonData.newFeatures.filter((item): item is string => typeof item === 'string') : [],
+        importantBugFixes: Array.isArray(jsonData.importantBugFixes) ? jsonData.importantBugFixes.filter((item): item is string => typeof item === 'string') : [],
+        skinContent: Array.isArray(jsonData.skinContent) ? jsonData.skinContent.filter((item): item is string => typeof item === 'string') : [],
         generatedAt: new Date(),
         model: config.gemini.model,
       };
-    } catch (error) {
-      Logger.warn(`Geminiレスポンスの解析に失敗、フォールバック処理実行: ${error}`);
+    } catch (error: unknown) {
+      Logger.warn(`Geminiレスポンスの解析に失敗、フォールバック処理実行: ${String(error)}`);
 
       // パースに失敗した場合のフォールバック
       return {
@@ -297,7 +297,7 @@ keyChangesには、チャンピオンの重要な調整、アイテムの大き�
       }
 
       return cachedData;
-    } catch (error) {
+    } catch (error: unknown) {
       Logger.warn(`キャッシュ読み込みエラー (${version}):`, error);
       return null;
     }
@@ -316,7 +316,7 @@ keyChangesには、チャンピオンの重要な調整、アイテムの大き�
 
       await FileStorage.writeJson(summaryPath, summary);
       Logger.info(`要約をキャッシュに保存: ${summaryPath}`);
-    } catch (error) {
+    } catch (error: unknown) {
       Logger.error(`要約キャッシュ保存エラー (${summary.version}):`, error);
     }
   }
@@ -355,7 +355,7 @@ keyChangesには、チャンピオンの重要な調整、アイテムの大き�
           Logger.info('全ての要約キャッシュを削除しました');
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       Logger.error('要約キャッシュ削除エラー:', error);
     }
   }

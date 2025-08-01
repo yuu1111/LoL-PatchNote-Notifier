@@ -38,7 +38,7 @@ export class DiscordNotifier {
       await this.sendEmbedWithImage(patchNote, localImagePath, summary);
 
       Logger.info(`✅ Discord通知が完了しました: ${patchNote.version}`);
-    } catch (error) {
+    } catch (error: unknown) {
       const message = `Failed to send Discord notification for patch ${patchNote.version}`;
       Logger.error(message, error);
 
@@ -68,8 +68,8 @@ export class DiscordNotifier {
         imageUrl = `attachment://patch_${patchNote.version}.jpg`;
         hasLocalImage = true;
         Logger.info(`🖼️ ローカル画像をエンベッドに添付: ${localImagePath}`);
-      } catch (error) {
-        Logger.warn(`⚠️ ローカル画像アクセス失敗、オンライン画像を使用: ${error}`);
+      } catch (error: unknown) {
+        Logger.warn(`⚠️ ローカル画像アクセス失敗、オンライン画像を使用: ${String(error)}`);
       }
     }
 
@@ -291,7 +291,7 @@ export class DiscordNotifier {
       }
 
       Logger.info('Test Discord notification sent successfully');
-    } catch (error) {
+    } catch (error: unknown) {
       const message = 'Failed to send test Discord notification';
       Logger.error(message, error);
       throw new DiscordError(message, error instanceof Error ? 500 : undefined);
