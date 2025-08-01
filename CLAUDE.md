@@ -5,6 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 重要: 日本語での対話
 このプロジェクトでの対話は**日本語**で行うこと。コミット メッセージ、ログ出力、コメントなども日本語を使用する。
 
+## Release Rules
+- **GitHub Releases**: All release content (release notes, descriptions, changelogs) must be written in **English**
+- **Git Tags**: Use English for tag messages and descriptions
+- **Release Artifacts**: Documentation and installation instructions in English
+- **International Accessibility**: Ensure releases are accessible to global users
+
 ## Project Overview
 
 League of Legends Patch Notifier - A TypeScript/Node.js system that monitors the official LoL patch notes website and automatically sends Discord notifications when new patches are released.

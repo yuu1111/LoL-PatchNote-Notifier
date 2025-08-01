@@ -104,56 +104,56 @@ jobs:
         body: |
           ## 🎮 League of Legends Patch Notifier ${{ steps.version.outputs.version }}
           
-          ### 📋 変更内容
+          ### 📋 Changes
           ${{ steps.changelog.outputs.changelog }}
           
-          ### 📦 インストール方法
+          ### 📦 Installation
           
-          1. **アーカイブをダウンロード**
+          1. **Download Archive**
              ```bash
-             # tar.gz形式
+             # tar.gz format
              wget https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/download/${{ steps.version.outputs.version }}/lol-patch-notifier-${{ steps.version.outputs.clean_version }}.tar.gz
              tar -xzf lol-patch-notifier-${{ steps.version.outputs.clean_version }}.tar.gz
              cd lol-patch-notifier-${{ steps.version.outputs.clean_version }}
              
-             # zip形式
+             # zip format
              wget https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/download/${{ steps.version.outputs.version }}/lol-patch-notifier-${{ steps.version.outputs.clean_version }}.zip
              unzip lol-patch-notifier-${{ steps.version.outputs.clean_version }}.zip
              cd release
              ```
           
-          2. **依存関係をインストール**
+          2. **Install Dependencies**
              ```bash
              npm ci --only=production
              ```
           
-          3. **環境設定**
+          3. **Environment Setup**
              ```bash
              cp .env.example .env
-             # .env ファイルを編集して必要な設定を行う
+             # Edit .env file with your configuration
              ```
           
-          4. **アプリケーション起動**
+          4. **Start Application**
              ```bash
              npm start
              ```
           
-          ### ⚙️ 必要な環境変数
+          ### ⚙️ Required Environment Variables
           - `DISCORD_WEBHOOK_URL`: Discord Webhook URL
-          - `GEMINI_API_KEY`: Google Gemini API キー
-          - その他の設定は `.env.example` を参照
+          - `GEMINI_API_KEY`: Google Gemini API Key
+          - See `.env.example` for all configuration options
           
-          ### 📊 システム要件
-          - Node.js 18.0.0 以上
-          - npm 8.0.0 以上
-          - 256MB以上のメモリ
+          ### 📊 System Requirements
+          - Node.js 18.0.0 or higher
+          - npm 8.0.0 or higher
+          - 256MB+ memory
           
-          ### 🔗 ドキュメント
+          ### 🔗 Documentation
           - [README (English)](https://github.com/yuu1111/LoL-PatchNote-Notifier/blob/main/README.md)
           - [README (日本語)](https://github.com/yuu1111/LoL-PatchNote-Notifier/blob/main/README-JP.md)
           
           ---
-          **自動リリース by GitHub Actions** 🤖
+          **Automated Release by GitHub Actions** 🤖
         draft: false
         prerelease: false
         files: |
@@ -168,7 +168,7 @@ jobs:
     if: success()
     
     steps:
-    - name: リリース完了通知
+    - name: Release completion notification
       run: |
-        echo "🎉 リリース ${{ github.ref_name }} が正常に完了しました！"
-        echo "📦 ダウンロード: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/${{ github.ref_name }}"
+        echo "🎉 Release ${{ github.ref_name }} completed successfully!"
+        echo "📦 Download: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/${{ github.ref_name }}"
