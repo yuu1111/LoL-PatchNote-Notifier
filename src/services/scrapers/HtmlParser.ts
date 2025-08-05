@@ -1,6 +1,5 @@
 /**
  * Enhanced HtmlParser service
- * エンタープライズ級HTML解析サービス - DI対応版
  */
 
 import type * as cheerio from 'cheerio';
@@ -237,7 +236,7 @@ export interface HtmlParserInterface {
 }
 
 /**
- * エンタープライズ級HTML解析サービス
+ * HTML解析サービス
  * 依存関係注入対応、設定可能、メトリクス収集、キャッシュ機能付き
  */
 export class HtmlParser implements HtmlParserInterface {

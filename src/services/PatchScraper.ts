@@ -154,14 +154,11 @@ export class PatchScraper {
       // パッチデータの抽出
       const patchData = this.extractPatchData($, patchElement);
 
-      // 詳細ページから追加情報を取得
-      const detailedInfo = await this.fetchDetailedPatchInfo(patchData.normalizedUrl);
-
-      // パッチノートオブジェクトの構築
-      const patchNote = this.buildPatchNote(patchData, detailedInfo);
+      // 基本パッチノートオブジェクトの構築（詳細情報なし）
+      const patchNote = this.buildBasicPatchNote(patchData);
 
       // 成功ログ
-      this.logSuccessfulScraping(patchNote);
+      this.logBasicScrapingSuccess(patchNote);
 
       // デバッグセッション終了
       if (this.scraperDebugger && debugSessionId) {
@@ -210,6 +207,20 @@ export class PatchScraper {
       normalizedUrl,
       imageUrl,
       version,
+    };
+  }
+
+  /**
+   * 基本パッチノートオブジェクトを構築（詳細情報なし）
+   */
+  private buildBasicPatchNote(patchData: ExtractedPatchData): PatchNote {
+    return {
+      version: patchData.version,
+      title: patchData.title,
+      url: patchData.normalizedUrl,
+      publishedAt: new Date(),
+      // 基本情報のみ、詳細情報は後で追加
+      ...(patchData.imageUrl && { imageUrl: patchData.imageUrl }),
     };
   }
 
@@ -381,7 +392,21 @@ export class PatchScraper {
   }
 
   /**
-   * 成功時のログ出力
+   * 基本スクレイピング成功時のログ出力（詳細情報なし）
+   */
+  private logBasicScrapingSuccess(patchNote: PatchNote): void {
+    const details = [
+      patchNote.title,
+      patchNote.imageUrl ? '(画像あり)' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    Logger.info(`基本パッチノート取得成功: ${details}`);
+  }
+
+  /**
+   * 成功時のログ出力（詳細情報あり）
    */
   private logSuccessfulScraping(patchNote: PatchNote): void {
     const details = [

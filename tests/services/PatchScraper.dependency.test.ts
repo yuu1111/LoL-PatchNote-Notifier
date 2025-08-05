@@ -3,10 +3,10 @@
  * リファクタリング後の依存関係が正常に動作することを確認
  */
 
-import { PatchScraper, PatchScraperConfig } from './PatchScraper';
-import { HtmlParser } from './scrapers/HtmlParser';
-import { ImageValidator } from './scrapers/ImageValidator';
-import { ScraperDebugger } from './scrapers/ScraperDebugger';
+import { PatchScraper, PatchScraperConfig } from '../../src/services/PatchScraper';
+import { HtmlParser } from '../../src/services/scrapers/HtmlParser';
+import { ImageValidator } from '../../src/services/scrapers/ImageValidator';
+import { ScraperDebugger } from '../../src/services/scrapers/ScraperDebugger';
 
 describe('PatchScraper - 依存関係テスト', () => {
   describe('型定義の依存関係', () => {

@@ -3,11 +3,11 @@
  * エンタープライズ級画像検証サービスのテストスイート
  */
 
-import { ImageValidator, type ValidationRule } from './ImageValidator';
-import { Logger } from '../../utils/logger';
+import { ImageValidator, type ValidationRule } from '../../../src/services/scrapers/ImageValidator';
+import { Logger } from '../../../src/utils/logger';
 
 // Loggerのモック
-jest.mock('../../utils/logger', () => ({
+jest.mock('../../../src/utils/logger', () => ({
   Logger: {
     debug: jest.fn(),
     info: jest.fn(),

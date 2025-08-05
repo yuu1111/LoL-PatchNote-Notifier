@@ -1,6 +1,5 @@
 /**
  * Enhanced HtmlParser Test Suite
- * エンタープライズ級HTML解析サービスのテストスイート
  */
 
 import * as cheerio from 'cheerio';
@@ -12,12 +11,12 @@ import {
   type HtmlParserConfig,
   type ParseResult,
   type ParsingTask,
-} from './HtmlParser';
-import type { ImageValidatorInterface } from './ImageValidator';
-import { Logger } from '../../utils/logger';
+} from '../../../src/services/scrapers/HtmlParser';
+import type { ImageValidatorInterface } from '../../../src/services/scrapers/ImageValidator';
+import { Logger } from '../../../src/utils/logger';
 
 // Loggerのモック
-jest.mock('../../utils/logger', () => ({
+jest.mock('../../../src/utils/logger', () => ({
   Logger: {
     debug: jest.fn(),
     info: jest.fn(),

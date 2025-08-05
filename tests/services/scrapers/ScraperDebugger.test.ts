@@ -1,6 +1,6 @@
 /**
  * Enhanced ScraperDebugger Test Suite
- * エンタープライズ級デバッグサービスのテストスイート
+ * デバッグサービスのテストスイート
  */
 
 import * as cheerio from 'cheerio';
@@ -12,11 +12,11 @@ import {
   type PageStructureAnalysis,
   type PatchElementAnalysis,
   ScraperDebugger,
-} from './ScraperDebugger';
-import { Logger } from '../../utils/logger';
+} from '../../../src/services/scrapers/ScraperDebugger';
+import { Logger } from '../../../src/utils/logger';
 
 // Loggerのモック
-jest.mock('../../utils/logger', () => ({
+jest.mock('../../../src/utils/logger', () => ({
   Logger: {
     debug: jest.fn(),
     info: jest.fn(),

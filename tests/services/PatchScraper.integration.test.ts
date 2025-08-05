@@ -3,18 +3,18 @@
  * PatchScraperの協調テスト - 他のサービスとの連携を検証
  */
 
-import { PatchScraper } from './PatchScraper';
-import { HtmlParser, type SelectorSet, type ParseResult } from './scrapers/HtmlParser';
-import { ImageValidator } from './scrapers/ImageValidator';
-import { ScraperDebugger } from './scrapers/ScraperDebugger';
-import { httpClient } from '../utils/httpClient';
-import { Logger } from '../utils/logger';
-import type { HttpResponse } from '../types';
+import { PatchScraper } from '../../src/services/PatchScraper';
+import { HtmlParser, type SelectorSet, type ParseResult } from '../../src/services/scrapers/HtmlParser';
+import { ImageValidator } from '../../src/services/scrapers/ImageValidator';
+import { ScraperDebugger } from '../../src/services/scrapers/ScraperDebugger';
+import { httpClient } from '../../src/utils/httpClient';
+import { Logger } from '../../src/utils/logger';
+import type { HttpResponse } from '../../src/types';
 import * as cheerio from 'cheerio';
 
 // モック設定
-jest.mock('../utils/httpClient');
-jest.mock('../utils/logger', () => ({
+jest.mock('../../src/utils/httpClient');
+jest.mock('../../src/utils/logger', () => ({
   Logger: {
     debug: jest.fn(),
     info: jest.fn(),
@@ -24,9 +24,9 @@ jest.mock('../utils/logger', () => ({
 }));
 
 // 部分的なモック - 実際のサービスインスタンスを使用
-jest.mock('./scrapers/HtmlParser');
-jest.mock('./scrapers/ImageValidator');
-jest.mock('./scrapers/ScraperDebugger');
+jest.mock('../../src/services/scrapers/HtmlParser');
+jest.mock('../../src/services/scrapers/ImageValidator');
+jest.mock('../../src/services/scrapers/ScraperDebugger');
 
 describe('PatchScraper Integration Tests - サービス協調テスト', () => {
   let patchScraper: PatchScraper;

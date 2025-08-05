@@ -1,6 +1,6 @@
 /**
  * Enhanced ImageValidator service
- * エンタープライズ級画像URL検証サービス - DI対応版
+ * 画像URL検証サービス - DI対応版
  */
 
 import type { Logger } from '../../utils/logger';
@@ -68,7 +68,7 @@ export interface ImageValidatorInterface {
 }
 
 /**
- * エンタープライズ級画像URL検証サービス
+ * 画像URL検証サービス
  * 依存関係注入対応、設定可能、メトリクス収集機能付き
  */
 export class ImageValidator implements ImageValidatorInterface {

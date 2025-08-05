@@ -1,6 +1,6 @@
 /**
  * Enhanced ScraperDebugger service
- * エンタープライズ級スクレイピングデバッグサービス - DI対応版
+ * スクレイピングデバッグサービス - DI対応版
  */
 
 import type * as cheerio from 'cheerio';
@@ -170,7 +170,7 @@ export interface ScraperDebuggerInterface {
 }
 
 /**
- * エンタープライズ級スクレイピングデバッグサービス
+ * スクレイピングデバッグサービス
  * セッション管理、構造化分析、パフォーマンス監視機能付き
  */
 export class ScraperDebugger implements ScraperDebuggerInterface {

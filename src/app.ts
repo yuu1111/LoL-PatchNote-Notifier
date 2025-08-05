@@ -113,6 +113,7 @@ export class App {
         return;
       }
 
+      // 新しいパッチなので詳細情報を取得してから通知処理
       await this.enrichPatchWithDetails(latestPatch);
       await this.processPatchNotification(latestPatch);
     } catch (error) {
@@ -369,7 +370,9 @@ export class App {
 }
 
 // メイン実行部分
-if (require.main === module) {
+// ESM環境でのメイン実行判定
+const isMainModule = import.meta.url.endsWith(process.argv[1]?.replace(/\\/g, '/') ?? '');
+if (isMainModule) {
   const app = new App();
 
   // シグナルハンドラー
