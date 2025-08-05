@@ -3,8 +3,8 @@
  * パッチノート内容を分析し、分かりやすい日本語で要約する
  */
 
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
-import { PatchNote, GeminiSummary, GeminiResult } from '../types';
+import { type GenerativeModel, GoogleGenerativeAI } from '@google/generative-ai';
+import type { GeminiResult, GeminiSummary, PatchNote } from '../types';
 import { config } from '../config';
 import { Logger } from '../utils/logger';
 import { FileStorage } from '../utils/fileStorage';
@@ -90,7 +90,7 @@ export class GeminiSummarizer {
           this.createTimeoutPromise(),
         ])) as GeminiResult;
 
-        const response = result.response;
+        const { response } = result;
         const text = response.text();
 
         if (!text || text.trim().length === 0) {
@@ -228,62 +228,65 @@ keyChangesには、チャンピオンの重要な調整、アイテムの大き�
    */
   private parseSummaryResponse(response: string, version: string): GeminiSummary {
     try {
-      // JSONブロックを抽出
-      const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonMatch?.[1]) {
-        const jsonData = JSON.parse(jsonMatch[1]) as Record<string, unknown>;
-        return {
-          version,
-          summary: typeof jsonData.summary === 'string' ? jsonData.summary : '',
-          keyChanges: Array.isArray(jsonData.keyChanges)
-            ? jsonData.keyChanges.filter((item): item is string => typeof item === 'string')
-            : [],
-          newFeatures: Array.isArray(jsonData.newFeatures)
-            ? jsonData.newFeatures.filter((item): item is string => typeof item === 'string')
-            : [],
-          importantBugFixes: Array.isArray(jsonData.importantBugFixes)
-            ? jsonData.importantBugFixes.filter((item): item is string => typeof item === 'string')
-            : [],
-          skinContent: Array.isArray(jsonData.skinContent)
-            ? jsonData.skinContent.filter((item): item is string => typeof item === 'string')
-            : [],
-          generatedAt: new Date(),
-          model: config.gemini.model,
-        };
-      }
-
-      // JSONブロックが見つからない場合、直接JSONとして解析を試行
-      const jsonData = JSON.parse(response) as Record<string, unknown>;
-      return {
-        version,
-        summary: typeof jsonData.summary === 'string' ? jsonData.summary : '',
-        keyChanges: Array.isArray(jsonData.keyChanges)
-          ? jsonData.keyChanges.filter((item): item is string => typeof item === 'string')
-          : [],
-        newFeatures: Array.isArray(jsonData.newFeatures)
-          ? jsonData.newFeatures.filter((item): item is string => typeof item === 'string')
-          : [],
-        importantBugFixes: Array.isArray(jsonData.importantBugFixes)
-          ? jsonData.importantBugFixes.filter((item): item is string => typeof item === 'string')
-          : [],
-        skinContent: Array.isArray(jsonData.skinContent)
-          ? jsonData.skinContent.filter((item): item is string => typeof item === 'string')
-          : [],
-        generatedAt: new Date(),
-        model: config.gemini.model,
-      };
+      const jsonData = this.extractJsonFromResponse(response);
+      return this.buildGeminiSummary(jsonData, version);
     } catch (error: unknown) {
       Logger.warn(`Geminiレスポンスの解析に失敗、フォールバック処理実行: ${String(error)}`);
-
-      // パースに失敗した場合のフォールバック
-      return {
-        version,
-        summary: `${response.substring(0, 500)}...`, // 最初の500文字を使用
-        keyChanges: ['詳細は元のパッチノートをご確認ください'],
-        generatedAt: new Date(),
-        model: config.gemini.model,
-      };
+      return this.createFallbackSummary(response, version);
     }
+  }
+
+  /**
+   * レスポンスからJSONデータを抽出
+   */
+  private extractJsonFromResponse(response: string): Record<string, unknown> {
+    // JSONブロックを抽出
+    const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
+    if (jsonMatch?.[1]) {
+      return JSON.parse(jsonMatch[1]) as Record<string, unknown>;
+    }
+
+    // JSONブロックが見つからない場合、直接JSONとして解析を試行
+    return JSON.parse(response) as Record<string, unknown>;
+  }
+
+  /**
+   * JSONデータからGeminiSummaryを構築
+   */
+  private buildGeminiSummary(jsonData: Record<string, unknown>, version: string): GeminiSummary {
+    return {
+      version,
+      summary: typeof jsonData.summary === 'string' ? jsonData.summary : '',
+      keyChanges: this.filterStringArray(jsonData.keyChanges, []),
+      newFeatures: this.filterStringArray(jsonData.newFeatures, []),
+      importantBugFixes: this.filterStringArray(jsonData.importantBugFixes, []),
+      skinContent: this.filterStringArray(jsonData.skinContent, []),
+      generatedAt: new Date(),
+      model: config.gemini.model,
+    };
+  }
+
+  /**
+   * 配列から文字列のみをフィルタリング
+   */
+  private filterStringArray(data: unknown, fallback: string[]): string[] {
+    return Array.isArray(data)
+      ? data.filter((item): item is string => typeof item === 'string')
+      : fallback;
+  }
+
+  /**
+   * フォールバック用のサマリーを作成
+   */
+  private createFallbackSummary(response: string, version: string): GeminiSummary {
+    const maxSummaryLength = 500;
+    return {
+      version,
+      summary: `${response.substring(0, maxSummaryLength)}...`,
+      keyChanges: ['詳細は元のパッチノートをご確認ください'],
+      generatedAt: new Date(),
+      model: config.gemini.model,
+    };
   }
 
   /**
@@ -359,20 +362,28 @@ keyChangesには、チャンピオンの重要な調整、アイテムの大き�
           Logger.info(`要約キャッシュを削除: ${version}`);
         }
       } else {
-        // 全キャッシュ削除
-        const fs = await import('fs/promises');
-        if (await FileStorage.exists(config.storage.summariesDir)) {
-          const files = await fs.readdir(config.storage.summariesDir);
-          for (const file of files) {
-            if (file.startsWith('summary-') && file.endsWith('.json')) {
-              await FileStorage.delete(path.join(config.storage.summariesDir, file));
-            }
-          }
-          Logger.info('全ての要約キャッシュを削除しました');
-        }
+        await this.deleteAllCaches();
       }
     } catch (error: unknown) {
       Logger.error('要約キャッシュ削除エラー:', error);
     }
+  }
+
+  /**
+   * 全キャッシュを削除
+   */
+  private async deleteAllCaches(): Promise<void> {
+    const fs = await import('fs/promises');
+    if (!(await FileStorage.exists(config.storage.summariesDir))) {
+      return;
+    }
+
+    const files = await fs.readdir(config.storage.summariesDir);
+    for (const file of files) {
+      if (file.startsWith('summary-') && file.endsWith('.json')) {
+        await FileStorage.delete(path.join(config.storage.summariesDir, file));
+      }
+    }
+    Logger.info('全ての要約キャッシュを削除しました');
   }
 }

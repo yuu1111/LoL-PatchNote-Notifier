@@ -166,10 +166,9 @@ export class Scheduler {
     } else if (minutes % 60 === 0) {
       const hours = minutes / 60;
       return `${hours}時間間隔で実行`;
-    } else {
-      const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      return `${hours}時間${remainingMinutes}分間隔で実行`;
     }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}時間${remainingMinutes}分間隔で実行`;
   }
 }

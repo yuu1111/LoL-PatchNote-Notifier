@@ -7,7 +7,7 @@ import * as cheerio from 'cheerio';
 import { httpClient } from '../utils/httpClient';
 import { Logger } from '../utils/logger';
 import { config } from '../config';
-import { PatchNote, ScrapingError } from '../types';
+import { type PatchNote, ScrapingError } from '../types';
 
 /**
  * Fallback selectors for robust HTML parsing
@@ -121,32 +121,52 @@ export class PatchScraper {
    * Extract high-resolution image from detail page
    */
   private extractDetailedImageUrl($: cheerio.CheerioAPI): string | null {
-    // 1920x1080の高解像度画像を優先的に探す
     const allImages = $('img');
-
     Logger.debug(`詳細ページで${allImages.length}個の画像を発見`);
 
-    // 最初に1920x1080の画像を探す
-    for (let i = 0; i < allImages.length; i++) {
-      const img = allImages.eq(i);
-      const src = img.attr('src') ?? img.attr('data-src');
-
-      if (src && this.isValidImageUrl(src)) {
-        // 1920x1080の画像を優先
-        if (src.includes('1920x1080')) {
-          Logger.debug(`1920x1080画像を発見: ${src}`);
-          return src;
-        }
-      }
+    // 1920x1080の高解像度画像を最優先で探す
+    const hdImageUrl = this.findHighDefinitionImage(allImages);
+    if (hdImageUrl) {
+      return hdImageUrl;
     }
 
-    // 次に高解像度画像を探す（1600x945など）
+    // 高解像度CDN画像を探す
+    const highResImageUrl = this.findHighResolutionCdnImage(allImages);
+    if (highResImageUrl) {
+      return highResImageUrl;
+    }
+
+    // フォールバック: セレクターベースの検索
+    return this.findImageBySelectorFallback($);
+  }
+
+  /**
+   * 1920x1080の高解像度画像を検索
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private findHighDefinitionImage(allImages: cheerio.Cheerio<any>): string | null {
+    for (let i = 0; i < allImages.length; i++) {
+      const img = allImages.eq(i);
+      const src = img.attr('src') ?? img.attr('data-src');
+
+      if (src && this.isValidImageUrl(src) && src.includes('1920x1080')) {
+        Logger.debug(`1920x1080画像を発見: ${src}`);
+        return src;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 高解像度CDN画像を検索
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private findHighResolutionCdnImage(allImages: cheerio.Cheerio<any>): string | null {
     for (let i = 0; i < allImages.length; i++) {
       const img = allImages.eq(i);
       const src = img.attr('src') ?? img.attr('data-src');
 
       if (src && this.isValidImageUrl(src)) {
-        // Sanity CDNの高解像度画像
         if (
           src.includes('cmsassets.rgpub.io') &&
           (src.includes('1600x') || src.includes('1920x'))
@@ -156,8 +176,13 @@ export class PatchScraper {
         }
       }
     }
+    return null;
+  }
 
-    // フォールバック: 従来のセレクター
+  /**
+   * セレクターベースのフォールバック画像検索
+   */
+  private findImageBySelectorFallback($: cheerio.CheerioAPI): string | null {
     const detailImageSelectors = [
       '.hero-image img',
       '.patch-hero img',
@@ -192,100 +217,23 @@ export class PatchScraper {
       const response = await httpClient.get<string>(config.lol.patchNotesUrl);
       const $ = cheerio.load(response.data);
 
-      // Debug: Log available elements
-      Logger.debug(`Total elements found: ${$('*').length}`);
-      Logger.debug(
-        `Available classes: ${[
-          ...$('[class]')
-            .map((_, el) => $(el).attr('class'))
-            .get(),
-        ]
-          .slice(0, 20)
-          .join(', ')}`
-      );
+      this.debugLogPageStructure($);
 
-      // Debug: Look for grid containers that might contain articles
-      const gridContainers = $('.sc-4d29e6fd-0');
-      Logger.debug(`Grid containers found: ${gridContainers.length}`);
-      gridContainers.each((i, el) => {
-        const $el = $(el);
-        Logger.debug(
-          `Grid ${i}: classes="${$el.attr('class')}", children=${$el.children().length}`
-        );
-        $el.children().each((j, child) => {
-          const $child = $(child);
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-          const tagName = (child as any).tagName ?? 'unknown';
-          Logger.debug(`  Child ${j}: tag=${tagName}, classes="${$child.attr('class')}"`);
-        });
-      });
-
-      // Try to find the latest patch note using fallback selectors
       const patchElement = this.findElement($, this.selectors.container);
       if (!patchElement) {
         Logger.debug('Container selectors tried:', this.selectors.container);
         throw new ScrapingError('Could not find patch note container');
       }
 
-      Logger.debug(
-        `Found patch element with tag: ${patchElement.length > 0 ? (patchElement.prop('tagName') ?? 'unknown') : 'none'}`
-      );
-      Logger.debug(`Patch element classes: ${patchElement.attr('class')}`);
-      Logger.debug(`Patch element children: ${patchElement.children().length}`);
-      Logger.debug(`Patch element href: ${patchElement.attr('href')}`);
-      Logger.debug(`Patch element text: ${patchElement.text().substring(0, 200)}...`);
+      this.debugLogPatchElement($, patchElement);
 
-      // Debug: Show children structure
-      patchElement.children().each((i, child) => {
-        const $child = $(child);
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-        const tagName = (child as any).tagName ?? 'unknown';
-        Logger.debug(
-          `  Child ${i}: tag=${tagName}, classes="${$child.attr('class')}", text="${$child.text().substring(0, 100)}..."`
-        );
-        $child.children().each((j, grandchild) => {
-          const $grandchild = $(grandchild);
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-          const grandchildTagName = (grandchild as any).tagName ?? 'unknown';
-          Logger.debug(
-            `    Grandchild ${j}: tag=${grandchildTagName}, classes="${$grandchild.attr('class')}", text="${$grandchild.text().substring(0, 50)}..."`
-          );
-        });
-      });
+      const patchData = this.extractPatchData($, patchElement);
+      const detailedInfo = await this.scrapeDetailedPatch(patchData.normalizedUrl);
 
-      const title = this.extractTitle($, patchElement);
-      if (!title) {
-        throw new ScrapingError('Could not extract patch note title');
-      }
-
-      const url = this.extractUrl($, patchElement);
-      if (!url) {
-        throw new ScrapingError('Could not extract patch note URL');
-      }
-
-      const imageUrl = this.extractImageUrl($, patchElement);
-      Logger.debug(`Image URL extracted: ${imageUrl ?? 'None found'}`);
-      const version = this.extractVersion(title);
-
-      const normalizedUrl = this.normalizeUrl(url);
-
-      // 個別ページから詳細情報を取得
-      Logger.info(`個別ページから詳細情報を取得します: ${normalizedUrl}`);
-      const detailedInfo = await this.scrapeDetailedPatch(normalizedUrl);
-
-      const patchNote: PatchNote = {
-        version,
-        title,
-        url: normalizedUrl,
-        publishedAt: new Date(),
-        ...(detailedInfo.content && { content: detailedInfo.content }),
-        ...(detailedInfo.imageUrl && { imageUrl: this.normalizeUrl(detailedInfo.imageUrl) }),
-        // 個別ページで画像が見つからない場合は、リストページから取得した画像を使用
-        ...(!detailedInfo.imageUrl && imageUrl && { imageUrl: this.normalizeUrl(imageUrl) }),
-      };
+      const patchNote = this.buildPatchNote(patchData, detailedInfo);
 
       Logger.info(
-        `Successfully scraped patch note: ${title}${detailedInfo.content ? ` (本文: ${detailedInfo.content.length}文字)` : ''}${patchNote.imageUrl ? ' (画像あり)' : ''}`
+        `Successfully scraped patch note: ${patchData.title}${detailedInfo.content ? ` (本文: ${detailedInfo.content.length}文字)` : ''}${patchNote.imageUrl ? ' (画像あり)' : ''}`
       );
       return patchNote;
     } catch (error) {
@@ -298,6 +246,140 @@ export class PatchScraper {
 
       throw new ScrapingError(message);
     }
+  }
+
+  /**
+   * デバッグ用：ページ構造をログ出力
+   */
+  private debugLogPageStructure($: cheerio.CheerioAPI): void {
+    Logger.debug(`Total elements found: ${$('*').length}`);
+    Logger.debug(
+      `Available classes: ${[
+        ...$('[class]')
+          .map((_, el) => $(el).attr('class'))
+          .get(),
+      ]
+        .slice(0, 20)
+        .join(', ')}`
+    );
+
+    const gridContainers = $('.sc-4d29e6fd-0');
+    Logger.debug(`Grid containers found: ${gridContainers.length}`);
+    this.logGridContainers($, gridContainers);
+  }
+
+  /**
+   * グリッドコンテナ情報をログ出力
+   */
+  private logGridContainers(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    gridContainers: cheerio.Cheerio<any>
+  ): void {
+    gridContainers.each((i, el) => {
+      const $el = $(el);
+      Logger.debug(`Grid ${i}: classes="${$el.attr('class')}", children=${$el.children().length}`);
+      $el.children().each((j, child) => {
+        const $child = $(child);
+        const tagName = $child.prop('tagName')?.toLowerCase() ?? 'unknown';
+        Logger.debug(`  Child ${j}: tag=${tagName}, classes="${$child.attr('class')}"`);
+      });
+    });
+  }
+
+  /**
+   * デバッグ用：パッチ要素情報をログ出力
+   */
+  private debugLogPatchElement(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    patchElement: cheerio.Cheerio<any>
+  ): void {
+    Logger.debug(
+      `Found patch element with tag: ${patchElement.length > 0 ? (patchElement.prop('tagName') ?? 'unknown') : 'none'}`
+    );
+    Logger.debug(`Patch element classes: ${patchElement.attr('class')}`);
+    Logger.debug(`Patch element children: ${patchElement.children().length}`);
+    Logger.debug(`Patch element href: ${patchElement.attr('href')}`);
+    Logger.debug(`Patch element text: ${patchElement.text().substring(0, 200)}...`);
+
+    this.logPatchElementChildren($, patchElement);
+  }
+
+  /**
+   * パッチ要素の子要素をログ出力
+   */
+  private logPatchElementChildren(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    patchElement: cheerio.Cheerio<any>
+  ): void {
+    patchElement.children().each((i, child) => {
+      const $child = $(child);
+      const tagName = $child.prop('tagName')?.toLowerCase() ?? 'unknown';
+      Logger.debug(
+        `  Child ${i}: tag=${tagName}, classes="${$child.attr('class')}", text="${$child.text().substring(0, 100)}..."`
+      );
+      $child.children().each((j, grandchild) => {
+        const $grandchild = $(grandchild);
+        const grandchildTagName = $grandchild.prop('tagName')?.toLowerCase() ?? 'unknown';
+        Logger.debug(
+          `    Grandchild ${j}: tag=${grandchildTagName}, classes="${$grandchild.attr('class')}", text="${$grandchild.text().substring(0, 50)}..."`
+        );
+      });
+    });
+  }
+
+  /**
+   * パッチデータを抽出
+   */
+  private extractPatchData(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    patchElement: cheerio.Cheerio<any>
+  ): {
+    title: string;
+    url: string;
+    normalizedUrl: string;
+    imageUrl: string | null;
+    version: string;
+  } {
+    const title = this.extractTitle($, patchElement);
+    if (!title) {
+      throw new ScrapingError('Could not extract patch note title');
+    }
+
+    const url = this.extractUrl($, patchElement);
+    if (!url) {
+      throw new ScrapingError('Could not extract patch note URL');
+    }
+
+    const imageUrl = this.extractImageUrl($, patchElement);
+    Logger.debug(`Image URL extracted: ${imageUrl ?? 'None found'}`);
+    const version = this.extractVersion(title);
+    const normalizedUrl = this.normalizeUrl(url);
+
+    return { title, url, normalizedUrl, imageUrl, version };
+  }
+
+  /**
+   * パッチノートオブジェクトを構築
+   */
+  private buildPatchNote(
+    patchData: { title: string; normalizedUrl: string; imageUrl: string | null; version: string },
+    detailedInfo: { content?: string; imageUrl?: string }
+  ): PatchNote {
+    return {
+      version: patchData.version,
+      title: patchData.title,
+      url: patchData.normalizedUrl,
+      publishedAt: new Date(),
+      ...(detailedInfo.content && { content: detailedInfo.content }),
+      ...(detailedInfo.imageUrl && { imageUrl: this.normalizeUrl(detailedInfo.imageUrl) }),
+      // 個別ページで画像が見つからない場合は、リストページから取得した画像を使用
+      ...(!detailedInfo.imageUrl &&
+        patchData.imageUrl && { imageUrl: this.normalizeUrl(patchData.imageUrl) }),
+    };
   } /**
    * Find element using fallback selectors
    */
@@ -381,19 +463,41 @@ export class PatchScraper {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     container: cheerio.Cheerio<any>
   ): string | null {
-    // Check if container itself is an <a> tag
+    const containerHref = this.getContainerHref(container);
+    if (containerHref) {
+      return containerHref;
+    }
+
+    const containerUrl = this.extractUrlFromContainer(container);
+    if (containerUrl) {
+      return containerUrl;
+    }
+
+    return this.extractUrlFromDocument($);
+  }
+
+  /**
+   * コンテナ自体がaタグの場合のhref取得
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private getContainerHref(container: cheerio.Cheerio<any>): string | null {
     if (container.is('a')) {
       const href = container.attr('href');
       if (href) {
         return href;
       }
     }
+    return null;
+  }
 
-    // First try within the container
+  /**
+   * コンテナ内からURL抽出
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private extractUrlFromContainer(container: cheerio.Cheerio<any>): string | null {
     for (const selector of this.selectors.url) {
-      if (!selector) {
-        continue;
-      } // Skip empty selector
+      if (!selector) continue; // Skip empty selector
+
       const linkElement = container.find(selector).first();
       if (linkElement.length > 0) {
         const href = linkElement.attr('href');
@@ -402,12 +506,16 @@ export class PatchScraper {
         }
       }
     }
+    return null;
+  }
 
-    // Fallback to document-wide search
+  /**
+   * ドキュメント全体からURL抽出（フォールバック）
+   */
+  private extractUrlFromDocument($: cheerio.CheerioAPI): string | null {
     for (const selector of this.selectors.url) {
-      if (!selector) {
-        continue;
-      } // Skip empty selector
+      if (!selector) continue; // Skip empty selector
+
       const linkElement = $(selector).first();
       if (linkElement.length > 0) {
         const href = linkElement.attr('href');
@@ -416,7 +524,6 @@ export class PatchScraper {
         }
       }
     }
-
     return null;
   }
 
@@ -430,7 +537,21 @@ export class PatchScraper {
   ): string | null {
     Logger.debug('Searching for images in container...');
 
-    // First try within the container
+    const containerImageUrl = this.findImageInContainer(container);
+    if (containerImageUrl) {
+      return containerImageUrl;
+    }
+
+    this.debugLogContainerImages($, container);
+
+    return this.findImageInDocument($);
+  }
+
+  /**
+   * コンテナ内で画像を検索
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private findImageInContainer(container: cheerio.Cheerio<any>): string | null {
     for (const selector of this.selectors.image) {
       Logger.debug(`Trying image selector: ${selector}`);
       const imgElement = container.find(selector).first();
@@ -445,8 +566,17 @@ export class PatchScraper {
         }
       }
     }
+    return null;
+  }
 
-    // Debug: Show all images in container
+  /**
+   * コンテナ内の画像をデバッグログ出力
+   */
+  private debugLogContainerImages(
+    $: cheerio.CheerioAPI,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    container: cheerio.Cheerio<any>
+  ): void {
     const allImages = container.find('img');
     Logger.debug(`Total images in container: ${allImages.length}`);
     allImages.each((i, img) => {
@@ -454,8 +584,12 @@ export class PatchScraper {
       const src = $img.attr('src') ?? $img.attr('data-src');
       Logger.debug(`  Image ${i}: src="${src}", classes="${$img.attr('class')}"`);
     });
+  }
 
-    // Fallback to document-wide search
+  /**
+   * ドキュメント全体で画像を検索（フォールバック）
+   */
+  private findImageInDocument($: cheerio.CheerioAPI): string | null {
     Logger.debug('Falling back to document-wide image search...');
     for (const selector of this.selectors.image) {
       const imgElement = $(selector).first();

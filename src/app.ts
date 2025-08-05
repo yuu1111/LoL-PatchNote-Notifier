@@ -12,7 +12,7 @@ import { StateManager } from './services/StateManager';
 import { Scheduler } from './services/Scheduler';
 import { Logger } from './utils/logger';
 import { config } from './config';
-import { AppError, NetworkError, ScrapingError, DiscordError } from './types';
+import { AppError, DiscordError, NetworkError, ScrapingError } from './types';
 
 /**
  * メインアプリケーションクラス
@@ -92,9 +92,7 @@ export class App {
     try {
       Logger.info('🔍 新しいパッチノートをチェック中...');
 
-      // 最新のパッチノートを取得
       const latestPatch = await this.patchScraper.scrapeLatestPatch();
-
       if (!latestPatch) {
         Logger.info('📝 パッチノートが見つかりませんでした');
         return;
@@ -102,74 +100,91 @@ export class App {
 
       Logger.info(`📋 パッチを発見: ${latestPatch.title} (v${latestPatch.version})`);
 
-      // 既に通知済みかチェック
       const isAlreadyNotified = await this.stateManager.isAlreadyNotified(latestPatch);
-
       if (isAlreadyNotified) {
         Logger.info('✅ このパッチは既に通知済みです');
         return;
-      } // 画像をダウンロード（存在する場合）
-      let localImagePath: string | undefined;
-      if (latestPatch.imageUrl) {
-        try {
-          localImagePath = await this.imageDownloader.downloadPatchImage(
-            latestPatch.imageUrl,
-            latestPatch.version
-          );
-          latestPatch.localImagePath = localImagePath;
-          Logger.info(`🖼️ パッチ画像をダウンロード: ${localImagePath}`);
-        } catch (imageError) {
-          Logger.warn('⚠️ パッチ画像のダウンロードに失敗しましたが、通知は継続します', imageError);
-        }
       }
 
-      // まずパッチ詳細データを保存
-      await this.stateManager.savePatchDetails(latestPatch);
-      Logger.info('💾 パッチ詳細データを保存しました');
-
-      // 保存されたJSONからパッチデータを読み込んでGemini要約を生成
-      let summary;
-      if (latestPatch.content) {
-        try {
-          Logger.info('🤖 保存されたパッチデータからGemini AIで要約を生成中...');
-
-          // 保存されたJSONファイルからパッチデータを読み込み
-          const savedPatch = await this.stateManager.loadPatchDetails(latestPatch.version);
-          if (savedPatch) {
-            summary = await this.geminiSummarizer.generateSummary(savedPatch);
-            if (summary) {
-              Logger.info('✅ パッチノート要約が生成されました');
-              latestPatch.summary = summary.summary; // パッチノートに要約を保存
-            } else {
-              Logger.warn('⚠️ Gemini要約の生成に失敗しましたが、通知は継続します');
-            }
-          } else {
-            Logger.warn('⚠️ 保存されたパッチデータの読み込みに失敗しました');
-          }
-        } catch (summaryError) {
-          Logger.warn(
-            '⚠️ Gemini要約の生成中にエラーが発生しましたが、通知は継続します',
-            summaryError
-          );
-        }
-      } else {
-        Logger.info('ℹ️ パッチのコンテンツが無いため、要約生成をスキップします');
-      }
-
-      // Discordに通知を送信（要約付き）
-      await this.discordNotifier.sendPatchNotification(
-        latestPatch,
-        localImagePath,
-        summary ?? undefined
-      );
-      Logger.info('🚀 Discord通知を送信しました');
-
-      // 状態を更新（通知完了として記録）
-      await this.stateManager.markNotificationSent(latestPatch);
-
-      Logger.info(`✅ パッチ通知処理が完了しました: ${latestPatch.version}`);
+      await this.processPatchNotification(latestPatch);
     } catch (error) {
       await this.handleError(error, 'パッチノートチェック処理');
+    }
+  }
+
+  /**
+   * パッチ通知処理
+   */
+  private async processPatchNotification(latestPatch: any): Promise<void> {
+    const localImagePath = await this.downloadPatchImage(latestPatch);
+    await this.stateManager.savePatchDetails(latestPatch);
+    Logger.info('💾 パッチ詳細データを保存しました');
+
+    const summary = await this.generatePatchSummary(latestPatch);
+
+    await this.discordNotifier.sendPatchNotification(
+      latestPatch,
+      localImagePath,
+      summary ?? undefined
+    );
+    Logger.info('🚀 Discord通知を送信しました');
+
+    await this.stateManager.markNotificationSent(latestPatch);
+    Logger.info(`✅ パッチ通知処理が完了しました: ${latestPatch.version}`);
+  }
+
+  /**
+   * パッチ画像をダウンロード
+   */
+  private async downloadPatchImage(latestPatch: any): Promise<string | undefined> {
+    if (!latestPatch.imageUrl) {
+      return undefined;
+    }
+
+    try {
+      const localImagePath = await this.imageDownloader.downloadPatchImage(
+        latestPatch.imageUrl,
+        latestPatch.version
+      );
+      latestPatch.localImagePath = localImagePath;
+      Logger.info(`🖼️ パッチ画像をダウンロード: ${localImagePath}`);
+      return localImagePath;
+    } catch (imageError) {
+      Logger.warn('⚠️ パッチ画像のダウンロードに失敗しましたが、通知は継続します', imageError);
+      return undefined;
+    }
+  }
+
+  /**
+   * パッチ要約生成
+   */
+  private async generatePatchSummary(latestPatch: any): Promise<any> {
+    if (!latestPatch.content) {
+      Logger.info('ℹ️ パッチのコンテンツが無いため、要約生成をスキップします');
+      return undefined;
+    }
+
+    try {
+      Logger.info('🤖 保存されたパッチデータからGemini AIで要約を生成中...');
+      const savedPatch = await this.stateManager.loadPatchDetails(latestPatch.version);
+
+      if (!savedPatch) {
+        Logger.warn('⚠️ 保存されたパッチデータの読み込みに失敗しました');
+        return undefined;
+      }
+
+      const summary = await this.geminiSummarizer.generateSummary(savedPatch);
+      if (summary) {
+        Logger.info('✅ パッチノート要約が生成されました');
+        latestPatch.summary = summary.summary;
+        return summary;
+      }
+
+      Logger.warn('⚠️ Gemini要約の生成に失敗しましたが、通知は継続します');
+      return undefined;
+    } catch (summaryError) {
+      Logger.warn('⚠️ Gemini要約の生成中にエラーが発生しましたが、通知は継続します', summaryError);
+      return undefined;
     }
   }
 

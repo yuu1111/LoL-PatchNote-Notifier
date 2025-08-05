@@ -3,10 +3,10 @@
  * Axios-based HTTP client with retry logic and rate limiting
  */
 
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { config } from '../config';
 import { Logger } from './logger';
-import { NetworkError, HttpResponse } from '../types';
+import { type HttpResponse, NetworkError } from '../types';
 
 /**
  * Rate limiter for HTTP requests

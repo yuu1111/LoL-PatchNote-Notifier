@@ -102,3 +102,4 @@ temp/
 release/
 *.tar.gz
 *.zip
+lint_result.txt

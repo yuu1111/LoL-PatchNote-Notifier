@@ -3,7 +3,7 @@
  * Environment variables and app settings
  */
 
-import { AppConfig } from '../types';
+import type { AppConfig } from '../types';
 
 /**
  * Validate required environment variables
@@ -36,30 +36,79 @@ function generateLogFilename(): string {
 }
 
 /**
+ * Parse environment variable as integer with default
+ */
+function parseEnvInt(envVar: string | undefined, defaultValue: string): number {
+  return parseInt(envVar ?? defaultValue, 10);
+}
+
+/**
+ * Parse environment variable as float with default
+ */
+function parseEnvFloat(envVar: string | undefined, defaultValue: string): number {
+  return parseFloat(envVar ?? defaultValue);
+}
+
+/**
+ * Create gemini configuration
+ */
+function createGeminiConfig(apiKey: string): AppConfig['gemini'] {
+  return {
+    apiKey,
+    model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
+    temperature: parseEnvFloat(process.env.GEMINI_TEMPERATURE, '0.3'),
+    maxTokens: parseEnvInt(process.env.GEMINI_MAX_TOKENS, '8192'),
+    timeout: parseEnvInt(process.env.GEMINI_TIMEOUT, '60000'),
+    maxRetries: parseEnvInt(process.env.GEMINI_MAX_RETRIES, '3'),
+  };
+}
+
+/**
+ * Create http configuration
+ */
+function createHttpConfig(): AppConfig['http'] {
+  return {
+    timeout: parseEnvInt(process.env.REQUEST_TIMEOUT, '30000'),
+    maxRetries: parseEnvInt(process.env.MAX_RETRIES, '3'),
+    retryDelay: parseEnvInt(process.env.RETRY_DELAY, '1000'),
+  };
+}
+
+/**
+ * Create rate limit configuration
+ */
+function createRateLimitConfig(): AppConfig['rateLimit'] {
+  return {
+    maxRequestsPerHour: parseEnvInt(process.env.MAX_REQUESTS_PER_HOUR, '20'),
+    windowMs: parseEnvInt(process.env.RATE_LIMIT_WINDOW, '3600000'),
+  };
+}
+
+/**
  * Load and validate configuration from environment
  */
 export function loadConfig(): AppConfig {
   validateEnvironment();
 
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+
+  if (!webhookUrl || !geminiApiKey) {
+    throw new Error('Critical environment variables are missing after validation');
+  }
+
   return {
     discord: {
-      webhookUrl: process.env.DISCORD_WEBHOOK_URL!,
+      webhookUrl,
     },
     lol: {
       patchNotesUrl:
         process.env.LOL_PATCH_NOTES_URL ??
         'https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes',
     },
-    gemini: {
-      apiKey: process.env.GEMINI_API_KEY!,
-      model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
-      temperature: parseFloat(process.env.GEMINI_TEMPERATURE ?? '0.3'),
-      maxTokens: parseInt(process.env.GEMINI_MAX_TOKENS ?? '8192', 10),
-      timeout: parseInt(process.env.GEMINI_TIMEOUT ?? '60000', 10),
-      maxRetries: parseInt(process.env.GEMINI_MAX_RETRIES ?? '3', 10),
-    },
+    gemini: createGeminiConfig(geminiApiKey),
     monitoring: {
-      checkIntervalMinutes: parseInt(process.env.CHECK_INTERVAL_MINUTES ?? '90', 10),
+      checkIntervalMinutes: parseEnvInt(process.env.CHECK_INTERVAL_MINUTES, '90'),
     },
     logging: {
       level: process.env.LOG_LEVEL ?? 'info',
@@ -70,15 +119,8 @@ export function loadConfig(): AppConfig {
       imagesDir: 'patches/images',
       summariesDir: 'patches/summaries',
     },
-    http: {
-      timeout: parseInt(process.env.REQUEST_TIMEOUT ?? '30000', 10),
-      maxRetries: parseInt(process.env.MAX_RETRIES ?? '3', 10),
-      retryDelay: parseInt(process.env.RETRY_DELAY ?? '1000', 10),
-    },
-    rateLimit: {
-      maxRequestsPerHour: parseInt(process.env.MAX_REQUESTS_PER_HOUR ?? '20', 10),
-      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW ?? '3600000', 10),
-    },
+    http: createHttpConfig(),
+    rateLimit: createRateLimitConfig(),
   };
 }
 
@@ -89,9 +131,7 @@ let _config: AppConfig | null = null;
 
 export const config = new Proxy({} as AppConfig, {
   get(target, prop): unknown {
-    if (!_config) {
-      _config = loadConfig();
-    }
+    _config ??= loadConfig();
     return _config[prop as keyof AppConfig];
   },
 });

@@ -9,7 +9,7 @@ import { httpClient } from '../utils/httpClient';
 import { FileStorage } from '../utils/fileStorage';
 import { Logger } from '../utils/logger';
 import { config } from '../config';
-import { NetworkError, AppError } from '../types';
+import { AppError, NetworkError } from '../types';
 
 export class ImageDownloader {
   private readonly imagesDir: string;
@@ -137,6 +137,6 @@ export class ImageDownloader {
    */
   public async isImageCached(imageUrl: string, patchVersion: string): Promise<boolean> {
     const localPath = this.getImagePath(imageUrl, patchVersion);
-    return await FileStorage.exists(localPath);
+    return FileStorage.exists(localPath);
   }
 }

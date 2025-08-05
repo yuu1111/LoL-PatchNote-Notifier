@@ -120,3 +120,93 @@ The system uses multiple fallback CSS selectors to handle website structure chan
 **State Management**: Uses local JSON files for simplicity - ensure persistent storage in production deployments.
 
 **Discord Integration**: Sends rich embeds with patch titles, URLs, cached images, and timestamp formatting.
+
+## Development Standards
+
+### Package Management
+- **Always use npm commands when adding dependencies to package.json**
+- Never edit package.json directly
+
+```bash
+# Regular dependencies
+npm install <package-name>
+
+# Development dependencies
+npm install --save-dev <package-name>
+
+# Install specific version
+npm install <package-name>@<version>
+```
+
+### Code Quality Rules
+
+#### ESLint Configuration Policy
+- **Relaxing ESLint settings is prohibited**
+- Adding rules and strictification within reasonable limits is recommended
+- Configuration changes that improve project quality are actively encouraged
+- Document reasons clearly when changing rules
+
+**Current strict configuration**:
+```typescript
+// TypeScript strictification
+'@typescript-eslint/explicit-function-return-type': 'error'
+'@typescript-eslint/no-non-null-assertion': 'error'
+'@typescript-eslint/prefer-nullish-coalescing': 'error'
+'@typescript-eslint/prefer-optional-chain': 'error'
+
+// Code quality rules
+'complexity': ['error', { max: 10 }]
+'max-depth': ['error', 4]
+'max-lines-per-function': ['warn', { max: 80 }]
+'max-params': ['error', 4]
+
+// Security rules
+'no-eval': 'error'
+'no-implied-eval': 'error'
+'no-new-func': 'error'
+
+// Naming conventions
+'@typescript-eslint/naming-convention': [
+  { selector: 'interface', format: ['PascalCase'] },
+  { selector: 'class', format: ['PascalCase'] },
+  { selector: 'function', format: ['camelCase'] }
+]
+```
+
+**Configuration change examples**:
+```bash
+# Allowed changes (strictification)
+- Adding rules: @typescript-eslint/no-unused-vars: "error"
+- Existing rule strictification: complexity: ["error", { "max": 8 }]
+
+# Prohibited changes (relaxation)
+- Disabling rules: "no-console": "off"
+- Lowering error levels: "@typescript-eslint/no-any": "warn" → "off"
+```
+
+#### Regular Code Quality Checks
+Execute the following full checks regularly during development:
+
+```bash
+# Full code quality check (recommended execution order)
+npm run lint           # ESLint execution
+npm run format:check   # Prettier format check
+npm run build          # TypeScript type check + build
+npm test               # Test execution
+
+# Or batch execution alias
+npm run quality:check  # Execute all quality checks sequentially
+```
+
+**Check execution timing**:
+- Before commits (automatically executed by Husky)
+- Before creating pull requests
+- At the end of development sessions
+- After major feature implementations
+- During weekly reviews
+
+**Error handling policy**:
+- ESLint errors: Must fix before committing
+- TypeScript errors: Prioritize type safety and fix
+- Test errors: Fix after confirming functionality works properly
+- Prettier errors: Auto-fix with `npm run format`
