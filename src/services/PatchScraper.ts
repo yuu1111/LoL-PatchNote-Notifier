@@ -20,6 +20,9 @@ interface SelectorSet {
 }
 
 export class PatchScraper {
+  // Constants
+  private static readonly MAX_DEBUG_CLASSES = 20; // eslint-disable-line no-magic-numbers
+
   private readonly selectors: SelectorSet = {
     container: [
       '.sc-4d29e6fd-0 .action',
@@ -259,7 +262,7 @@ export class PatchScraper {
           .map((_, el) => $(el).attr('class'))
           .get(),
       ]
-        .slice(0, 20)
+        .slice(0, PatchScraper.MAX_DEBUG_CLASSES)
         .join(', ')}`
     );
 
@@ -519,6 +522,7 @@ export class PatchScraper {
       const linkElement = $(selector).first();
       if (linkElement.length > 0) {
         const href = linkElement.attr('href');
+        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
         if (href?.includes('patch')) {
           return href;
         }

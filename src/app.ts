@@ -12,7 +12,14 @@ import { StateManager } from './services/StateManager';
 import { Scheduler } from './services/Scheduler';
 import { Logger } from './utils/logger';
 import { config } from './config';
-import { AppError, DiscordError, NetworkError, ScrapingError } from './types';
+import {
+  AppError,
+  DiscordError,
+  type GeminiSummary,
+  NetworkError,
+  type PatchNote,
+  ScrapingError,
+} from './types';
 
 /**
  * メインアプリケーションクラス
@@ -115,7 +122,7 @@ export class App {
   /**
    * パッチ通知処理
    */
-  private async processPatchNotification(latestPatch: any): Promise<void> {
+  private async processPatchNotification(latestPatch: PatchNote): Promise<void> {
     const localImagePath = await this.downloadPatchImage(latestPatch);
     await this.stateManager.savePatchDetails(latestPatch);
     Logger.info('💾 パッチ詳細データを保存しました');
@@ -136,7 +143,7 @@ export class App {
   /**
    * パッチ画像をダウンロード
    */
-  private async downloadPatchImage(latestPatch: any): Promise<string | undefined> {
+  private async downloadPatchImage(latestPatch: PatchNote): Promise<string | undefined> {
     if (!latestPatch.imageUrl) {
       return undefined;
     }
@@ -158,10 +165,10 @@ export class App {
   /**
    * パッチ要約生成
    */
-  private async generatePatchSummary(latestPatch: any): Promise<any> {
+  private async generatePatchSummary(latestPatch: PatchNote): Promise<GeminiSummary | null> {
     if (!latestPatch.content) {
       Logger.info('ℹ️ パッチのコンテンツが無いため、要約生成をスキップします');
-      return undefined;
+      return null;
     }
 
     try {
@@ -170,7 +177,7 @@ export class App {
 
       if (!savedPatch) {
         Logger.warn('⚠️ 保存されたパッチデータの読み込みに失敗しました');
-        return undefined;
+        return null;
       }
 
       const summary = await this.geminiSummarizer.generateSummary(savedPatch);
@@ -181,10 +188,10 @@ export class App {
       }
 
       Logger.warn('⚠️ Gemini要約の生成に失敗しましたが、通知は継続します');
-      return undefined;
+      return null;
     } catch (summaryError) {
       Logger.warn('⚠️ Gemini要約の生成中にエラーが発生しましたが、通知は継続します', summaryError);
-      return undefined;
+      return null;
     }
   }
 

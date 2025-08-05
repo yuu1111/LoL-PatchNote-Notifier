@@ -16,6 +16,14 @@ export class GeminiSummarizer {
   private readonly maxRetries: number;
   private readonly requestTimeout: number;
 
+  // Time constants
+  private static readonly DAYS_IN_WEEK = 7; // eslint-disable-line no-magic-numbers
+  private static readonly HOURS_IN_DAY = 24; // eslint-disable-line no-magic-numbers
+  private static readonly MINUTES_IN_HOUR = 60; // eslint-disable-line no-magic-numbers
+  private static readonly SECONDS_IN_MINUTE = 60; // eslint-disable-line no-magic-numbers
+  private static readonly MS_IN_SECOND = 1000;
+  private static readonly CACHE_MAX_AGE_DAYS = 7; // eslint-disable-line no-magic-numbers
+
   constructor() {
     this.maxRetries = config.gemini.maxRetries;
     this.requestTimeout = config.gemini.timeout;
@@ -308,7 +316,12 @@ keyChangesには、チャンピオンの重要な調整、アイテムの大き�
 
       // キャッシュの有効性を確認（7日間有効）
       const cacheAge = Date.now() - new Date(cachedData.generatedAt).getTime();
-      const maxAge = 7 * 24 * 60 * 60 * 1000; // 7日間
+      const maxAge =
+        GeminiSummarizer.CACHE_MAX_AGE_DAYS *
+        GeminiSummarizer.HOURS_IN_DAY *
+        GeminiSummarizer.MINUTES_IN_HOUR *
+        GeminiSummarizer.SECONDS_IN_MINUTE *
+        GeminiSummarizer.MS_IN_SECOND;
 
       if (cacheAge > maxAge) {
         Logger.info(`キャッシュが期限切れです: ${version}`);

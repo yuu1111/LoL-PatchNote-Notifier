@@ -19,6 +19,12 @@ import {
 export class DiscordNotifier {
   private readonly webhookUrl: string;
 
+  // HTTP Status codes
+  private static readonly HTTP_STATUS_OK_MIN = 200;
+  private static readonly HTTP_STATUS_OK_MAX = 300; // eslint-disable-line no-magic-numbers
+  private static readonly HTTP_STATUS_INTERNAL_ERROR = 500; // eslint-disable-line no-magic-numbers
+  private static readonly HTTP_STATUS_RATE_LIMIT = 429; // eslint-disable-line no-magic-numbers
+
   constructor() {
     this.webhookUrl = config.discord.webhookUrl;
   }
@@ -46,7 +52,10 @@ export class DiscordNotifier {
         throw error;
       }
 
-      throw new DiscordError(message, error instanceof Error ? 500 : undefined);
+      throw new DiscordError(
+        message,
+        error instanceof Error ? DiscordNotifier.HTTP_STATUS_INTERNAL_ERROR : undefined
+      );
     }
   }
 
@@ -105,7 +114,10 @@ export class DiscordNotifier {
       },
     });
 
-    if (response.status < 200 || response.status >= 300) {
+    if (
+      response.status < DiscordNotifier.HTTP_STATUS_OK_MIN ||
+      response.status >= DiscordNotifier.HTTP_STATUS_OK_MAX
+    ) {
       throw new DiscordError(`Discord webhook failed: HTTP ${response.status}`, response.status);
     }
 
@@ -122,7 +134,10 @@ export class DiscordNotifier {
       },
     });
 
-    if (response.status < 200 || response.status >= 300) {
+    if (
+      response.status < DiscordNotifier.HTTP_STATUS_OK_MIN ||
+      response.status >= DiscordNotifier.HTTP_STATUS_OK_MAX
+    ) {
       throw new DiscordError(`Discord webhook failed: HTTP ${response.status}`, response.status);
     }
 
@@ -162,9 +177,9 @@ export class DiscordNotifier {
   /**
    * Constants for Discord embed
    */
-  private static readonly MAX_FIELD_LENGTH = 1021;
-  private static readonly COLOR_WITH_SUMMARY = 0x00ff99;
-  private static readonly COLOR_WITHOUT_SUMMARY = 0x0099ff;
+  private static readonly MAX_FIELD_LENGTH = 1021; // eslint-disable-line no-magic-numbers
+  private static readonly COLOR_WITH_SUMMARY = 0x00ff99; // eslint-disable-line no-magic-numbers
+  private static readonly COLOR_WITHOUT_SUMMARY = 0x0099ff; // eslint-disable-line no-magic-numbers
 
   /**
    * Create basic fields for patch embed
@@ -256,7 +271,7 @@ export class DiscordNotifier {
   ): void {
     this.addSummaryField(fields, summary);
 
-    if (summary.keyChanges && summary.keyChanges.length > 0) {
+    if (summary.keyChanges.length > 0) {
       this.addKeyChangesField(fields, summary.keyChanges);
     }
 
@@ -344,7 +359,10 @@ export class DiscordNotifier {
         },
       });
 
-      if (response.status < 200 || response.status >= 300) {
+      if (
+        response.status < DiscordNotifier.HTTP_STATUS_OK_MIN ||
+        response.status >= DiscordNotifier.HTTP_STATUS_OK_MAX
+      ) {
         throw new DiscordError(
           `Test notification failed: HTTP ${response.status}`,
           response.status
@@ -355,7 +373,10 @@ export class DiscordNotifier {
     } catch (error: unknown) {
       const message = 'Failed to send test Discord notification';
       Logger.error(message, error);
-      throw new DiscordError(message, error instanceof Error ? 500 : undefined);
+      throw new DiscordError(
+        message,
+        error instanceof Error ? DiscordNotifier.HTTP_STATUS_INTERNAL_ERROR : undefined
+      );
     }
   }
 

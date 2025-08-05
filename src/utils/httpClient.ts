@@ -37,6 +37,9 @@ export class HttpClient {
   private readonly axiosInstance: AxiosInstance;
   private readonly rateLimiter = new RateLimiter();
 
+  // HTTP Status codes
+  private static readonly HTTP_STATUS_TOO_MANY_REQUESTS = 429; // eslint-disable-line no-magic-numbers
+
   constructor() {
     this.axiosInstance = axios.create({
       timeout: config.http.timeout,
@@ -55,17 +58,14 @@ export class HttpClient {
   /**
    * Make HTTP GET request with retry logic
    */
-  public async get<T = string>(
-    url: string,
-    options?: AxiosRequestConfig
-  ): Promise<HttpResponse<T>> {
+  public get<T = string>(url: string, options?: AxiosRequestConfig): Promise<HttpResponse<T>> {
     return this.makeRequest<T>('GET', url, options);
   }
 
   /**
    * Make HTTP POST request with retry logic
    */
-  public async post<T = unknown>(
+  public post<T = unknown>(
     url: string,
     data?: unknown,
     options?: AxiosRequestConfig
@@ -81,7 +81,10 @@ export class HttpClient {
   ): Promise<HttpResponse<T>> {
     // Check rate limit
     if (!this.rateLimiter.canMakeRequest()) {
-      throw new NetworkError('Rate limit exceeded. Please try again later.', 429);
+      throw new NetworkError(
+        'Rate limit exceeded. Please try again later.',
+        HttpClient.HTTP_STATUS_TOO_MANY_REQUESTS
+      );
     }
 
     let lastError: Error | undefined;

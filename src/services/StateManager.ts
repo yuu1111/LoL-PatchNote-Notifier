@@ -14,6 +14,13 @@ export class StateManager {
   private readonly patchesDir: string;
   private currentState: AppState | null = null;
 
+  // Time constants
+  private static readonly DAYS_IN_3_MONTHS = 90; // eslint-disable-line no-magic-numbers
+  private static readonly HOURS_IN_DAY = 24; // eslint-disable-line no-magic-numbers
+  private static readonly MINUTES_IN_HOUR = 60; // eslint-disable-line no-magic-numbers
+  private static readonly SECONDS_IN_MINUTE = 60; // eslint-disable-line no-magic-numbers
+  private static readonly MS_IN_SECOND = 1000;
+
   constructor() {
     this.patchesDir = config.storage.patchesDir;
     this.stateFilePath = path.join(this.patchesDir, 'last_patch_status.json');
@@ -275,7 +282,13 @@ export class StateManager {
   /**
    * 古いパッチデータのクリーンアップ
    */
-  public cleanupOldPatchData(maxAge: number = 90 * 24 * 60 * 60 * 1000): void {
+  public cleanupOldPatchData(
+    maxAge: number = StateManager.DAYS_IN_3_MONTHS *
+      StateManager.HOURS_IN_DAY *
+      StateManager.MINUTES_IN_HOUR *
+      StateManager.SECONDS_IN_MINUTE *
+      StateManager.MS_IN_SECOND
+  ): void {
     try {
       Logger.info('古いパッチデータのクリーンアップを開始');
       // 実装は将来のバージョンで追加
