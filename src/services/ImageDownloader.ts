@@ -135,8 +135,10 @@ export class ImageDownloader {
    * Get the local path for a cached image
    */
   public getImagePath(imageUrl: string, patchVersion: string): string {
+    const sanitizedVersion = patchVersion.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const patchDir = path.join(config.storage.patchesDir, `patch_${sanitizedVersion}`);
     const filename = this.generateImageFilename(imageUrl, patchVersion);
-    return path.join(this.imagesDir, filename);
+    return path.join(patchDir, filename);
   }
 
   /**

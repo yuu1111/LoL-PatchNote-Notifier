@@ -670,4 +670,11 @@ export class PatchScraper {
 
     return url;
   }
+
+  /**
+   * scrapePatchDetails - scrapeDetailedPatchのエイリアス（app.tsとの互換性のため）
+   */
+  public scrapePatchDetails(patchUrl: string): Promise<{ content?: string; imageUrl?: string }> {
+    return this.scrapeDetailedPatch(patchUrl);
+  }
 }

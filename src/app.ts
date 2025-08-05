@@ -113,6 +113,36 @@ export class App {
         return;
       }
 
+      // 既存のパッチデータをチェックしてキャッシュから復元
+      const hasCachedDetails = await this.stateManager.hasPatchDetails(latestPatch.version);
+      if (hasCachedDetails) {
+        Logger.info('📂 既存のパッチデータを使用します');
+        const cachedPatch = await this.stateManager.loadPatchDetails(latestPatch.version);
+        if (cachedPatch) {
+          // キャッシュデータを最新のパッチ情報にマージ
+          if (cachedPatch.content) {
+            latestPatch.content = cachedPatch.content;
+          }
+          if (cachedPatch.imageUrl) {
+            latestPatch.imageUrl = cachedPatch.imageUrl;
+          }
+          if (cachedPatch.localImagePath) {
+            latestPatch.localImagePath = cachedPatch.localImagePath;
+          }
+          Logger.info('✅ キャッシュからパッチ詳細を復元しました');
+        }
+      } else {
+        // 新規パッチの場合は詳細を取得
+        Logger.info('🆕 新しいパッチの詳細を取得中...');
+        const fullPatchData = await this.patchScraper.scrapePatchDetails(latestPatch.url);
+        if (fullPatchData.content) {
+          latestPatch.content = fullPatchData.content;
+        }
+        if (fullPatchData.imageUrl) {
+          latestPatch.imageUrl = fullPatchData.imageUrl;
+        }
+      }
+
       await this.processPatchNotification(latestPatch);
     } catch (error) {
       await this.handleError(error, 'パッチノートチェック処理');
@@ -144,6 +174,18 @@ export class App {
    * パッチ画像をダウンロード
    */
   private async downloadPatchImage(latestPatch: PatchNote): Promise<string | undefined> {
+    // 既にローカルパスが設定されている場合（キャッシュから復元）
+    if (latestPatch.localImagePath) {
+      const exists = await this.imageDownloader.isImageCached(
+        latestPatch.imageUrl ?? '',
+        latestPatch.version
+      );
+      if (exists) {
+        Logger.info(`🖼️ キャッシュ済みの画像を使用: ${latestPatch.localImagePath}`);
+        return latestPatch.localImagePath;
+      }
+    }
+
     if (!latestPatch.imageUrl) {
       return undefined;
     }
