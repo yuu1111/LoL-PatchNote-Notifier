@@ -113,39 +113,66 @@ export class App {
         return;
       }
 
-      // 既存のパッチデータをチェックしてキャッシュから復元
-      const hasCachedDetails = await this.stateManager.hasPatchDetails(latestPatch.version);
-      if (hasCachedDetails) {
-        Logger.info('📂 既存のパッチデータを使用します');
-        const cachedPatch = await this.stateManager.loadPatchDetails(latestPatch.version);
-        if (cachedPatch) {
-          // キャッシュデータを最新のパッチ情報にマージ
-          if (cachedPatch.content) {
-            latestPatch.content = cachedPatch.content;
-          }
-          if (cachedPatch.imageUrl) {
-            latestPatch.imageUrl = cachedPatch.imageUrl;
-          }
-          if (cachedPatch.localImagePath) {
-            latestPatch.localImagePath = cachedPatch.localImagePath;
-          }
-          Logger.info('✅ キャッシュからパッチ詳細を復元しました');
-        }
-      } else {
-        // 新規パッチの場合は詳細を取得
-        Logger.info('🆕 新しいパッチの詳細を取得中...');
-        const fullPatchData = await this.patchScraper.scrapePatchDetails(latestPatch.url);
-        if (fullPatchData.content) {
-          latestPatch.content = fullPatchData.content;
-        }
-        if (fullPatchData.imageUrl) {
-          latestPatch.imageUrl = fullPatchData.imageUrl;
-        }
-      }
-
+      await this.enrichPatchWithDetails(latestPatch);
       await this.processPatchNotification(latestPatch);
     } catch (error) {
       await this.handleError(error, 'パッチノートチェック処理');
+    }
+  }
+
+  /**
+   * パッチ詳細情報の補強（キャッシュまたは新規取得）
+   */
+  private async enrichPatchWithDetails(latestPatch: PatchNote): Promise<void> {
+    const hasCachedDetails = await this.stateManager.hasPatchDetails(latestPatch.version);
+
+    if (hasCachedDetails) {
+      await this.loadCachedPatchDetails(latestPatch);
+    } else {
+      await this.fetchNewPatchDetails(latestPatch);
+    }
+  }
+
+  /**
+   * キャッシュからパッチ詳細を読み込み
+   */
+  private async loadCachedPatchDetails(latestPatch: PatchNote): Promise<void> {
+    Logger.info('📂 既存のパッチデータを使用します');
+    const cachedPatch = await this.stateManager.loadPatchDetails(latestPatch.version);
+
+    if (cachedPatch) {
+      this.mergeCachedDataIntoPatch(latestPatch, cachedPatch);
+      Logger.info('✅ キャッシュからパッチ詳細を復元しました');
+    }
+  }
+
+  /**
+   * 新規パッチ詳細を取得
+   */
+  private async fetchNewPatchDetails(latestPatch: PatchNote): Promise<void> {
+    Logger.info('🆕 新しいパッチの詳細を取得中...');
+    const fullPatchData = await this.patchScraper.scrapePatchDetails(latestPatch.url);
+
+    if (fullPatchData.content) {
+      latestPatch.content = fullPatchData.content;
+    }
+    if (fullPatchData.imageUrl) {
+      latestPatch.imageUrl = fullPatchData.imageUrl;
+    }
+  }
+
+  /**
+   * キャッシュデータをメインパッチ情報にマージ
+   */
+  private mergeCachedDataIntoPatch(latestPatch: PatchNote, cachedPatch: PatchNote): void {
+    if (cachedPatch.content) {
+      latestPatch.content = cachedPatch.content;
+    }
+    if (cachedPatch.imageUrl) {
+      latestPatch.imageUrl = cachedPatch.imageUrl;
+    }
+    if (cachedPatch.localImagePath) {
+      latestPatch.localImagePath = cachedPatch.localImagePath;
     }
   }
 

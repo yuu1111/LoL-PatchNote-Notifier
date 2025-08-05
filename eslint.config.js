@@ -142,6 +142,16 @@ export default tseslint.config(
       'prettier/prettier': 'error',
     },
   },
+  // Test files configuration
+  {
+    files: ['**/*.test.ts', '**/*.spec.ts'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        project: './tsconfig.test.json',
+      },
+    },
+  },
   // Prettier config to disable conflicting rules
   prettierConfig,
 );

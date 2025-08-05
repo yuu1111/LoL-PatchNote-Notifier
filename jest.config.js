@@ -10,7 +10,14 @@ export default {
   ],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
-      useESM: true
+      useESM: true,
+      tsconfig: {
+        module: 'ESNext',
+        moduleResolution: 'node',
+        target: 'ES2022',
+        allowSyntheticDefaultImports: true,
+        esModuleInterop: true,
+      },
     }],
   },
   collectCoverageFrom: [
@@ -22,6 +29,7 @@ export default {
   // テストファイルが存在しない場合でも正常終了
   passWithNoTests: true,
   // Setup files
+  setupFiles: ['<rootDir>/jest.setup.ts'],
   setupFilesAfterEnv: [],
   // Module path mapping (if needed)
   moduleNameMapper: {

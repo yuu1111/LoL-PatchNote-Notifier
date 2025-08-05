@@ -5,10 +5,9 @@
 
 import winston from 'winston';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Use process.cwd() for base directory instead of import.meta
+const projectRoot = process.cwd();
 
 const logLevel = process.env.LOG_LEVEL ?? 'info';
 
@@ -71,14 +70,14 @@ export const logger = winston.createLogger({
     }),
     // File transport for errors
     new winston.transports.File({
-      filename: path.join(__dirname, '../../logs/error.log'),
+      filename: path.join(projectRoot, 'logs/error.log'),
       level: 'error',
       maxsize: 5242880, // 5MB
       maxFiles: 5,
     }),
     // File transport for combined logs
     new winston.transports.File({
-      filename: path.join(__dirname, '../../logs/combined.log'),
+      filename: path.join(projectRoot, 'logs/combined.log'),
       maxsize: 5242880, // 5MB
       maxFiles: 5,
     }),
