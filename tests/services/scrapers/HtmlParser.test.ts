@@ -667,26 +667,26 @@ describe('HtmlParser - Enhanced Enterprise Service', () => {
   });
 
   describe('高度な解析機能', () => {
-    test('parseWithXPathで空のHTMLの場合', () => {
+    test('parseWithXPathで空のHTMLの場合', async () => {
       const htmlParser = new HtmlParser(mockImageValidator, { enableXPathSupport: true });
 
       // 空のHTMLで解析
-      const result = htmlParser.parseWithXPath('', '//div');
+      const result = await htmlParser.parseWithXPath('', '//div');
 
       expect(result.success).toBe(true);
       expect(result.value).toEqual([]);
     });
 
-    test('XPath解析が無効の場合はエラーを返す', () => {
-      const result = htmlParser.parseWithXPath(mockHtml, '//div');
+    test('XPath解析が無効の場合はエラーを返す', async () => {
+      const result = await htmlParser.parseWithXPath(mockHtml, '//div');
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('XPath support is disabled');
     });
 
-    test('XPath解析が有効の場合の動作', () => {
+    test('XPath解析が有効の場合の動作', async () => {
       const parser = new HtmlParser(mockImageValidator, { enableXPathSupport: true });
-      const result = parser.parseWithXPath(mockHtml, '//div');
+      const result = await parser.parseWithXPath(mockHtml, '//div');
 
       expect(result.success).toBe(true);
       expect(Array.isArray(result.value)).toBe(true);
@@ -1014,12 +1014,12 @@ describe('HtmlParser - Enhanced Enterprise Service', () => {
       expect(result2.value).toBe(result1.value);
     });
 
-    test('高度な機能関連のカバレッジ向上', () => {
+    test('高度な機能関連のカバレッジ向上', async () => {
       // XPath有効時の正常ケース
       const xpathParser = new HtmlParser(mockImageValidator, {
         enableXPathSupport: true,
       });
-      const xpathResult = xpathParser.parseWithXPath('<div>test</div>', '//div');
+      const xpathResult = await xpathParser.parseWithXPath('<div>test</div>', '//div');
       expect(xpathResult.success).toBe(true);
       expect(xpathResult.value?.length).toBeGreaterThan(0);
 

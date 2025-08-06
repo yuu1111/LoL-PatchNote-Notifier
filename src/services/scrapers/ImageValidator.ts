@@ -381,8 +381,8 @@ export class ImageValidator implements ImageValidatorInterface {
       reason,
       details: {
         url,
-        protocol: this.extractProtocol(url),
-        size: url.length,
+        protocol: url ? this.extractProtocol(url) : 'unknown',
+        size: url ? url.length : 0,
         validationTime: 0, // 後で設定される
       },
       ...(recommendations && { recommendations }),
