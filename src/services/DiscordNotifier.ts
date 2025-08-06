@@ -177,9 +177,9 @@ export class DiscordNotifier {
   /**
    * Constants for Discord embed
    */
-  private static readonly MAX_FIELD_LENGTH = 1021; // eslint-disable-line no-magic-numbers
-  private static readonly COLOR_WITH_SUMMARY = 0x00ff99; // eslint-disable-line no-magic-numbers
-  private static readonly COLOR_WITHOUT_SUMMARY = 0x0099ff; // eslint-disable-line no-magic-numbers
+  private static readonly MAX_FIELD_LENGTH = 1021;
+  private static readonly COLOR_WITH_SUMMARY = 0x00ff99;
+  private static readonly COLOR_WITHOUT_SUMMARY = 0x0099ff;
 
   /**
    * Create basic fields for patch embed

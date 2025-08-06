@@ -1574,7 +1574,6 @@ export class HtmlParser implements HtmlParserInterface {
     let position = 0;
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       while (true) {
         const { done, value } = await reader.read();
 

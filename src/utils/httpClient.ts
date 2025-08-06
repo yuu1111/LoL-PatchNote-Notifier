@@ -38,7 +38,7 @@ export class HttpClient {
   private readonly rateLimiter = new RateLimiter();
 
   // HTTP Status codes
-  private static readonly HTTP_STATUS_TOO_MANY_REQUESTS = 429; // eslint-disable-line no-magic-numbers
+  private static readonly HTTP_STATUS_TOO_MANY_REQUESTS = 429;
 
   constructor() {
     this.axiosInstance = axios.create({

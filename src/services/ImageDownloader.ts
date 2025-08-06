@@ -15,10 +15,10 @@ export class ImageDownloader {
   private readonly imagesDir: string;
 
   // Time constants
-  private static readonly DAYS_IN_MONTH = 30; // eslint-disable-line no-magic-numbers
-  private static readonly HOURS_IN_DAY = 24; // eslint-disable-line no-magic-numbers
-  private static readonly MINUTES_IN_HOUR = 60; // eslint-disable-line no-magic-numbers
-  private static readonly SECONDS_IN_MINUTE = 60; // eslint-disable-line no-magic-numbers
+  private static readonly DAYS_IN_MONTH = 30;
+  private static readonly HOURS_IN_DAY = 24;
+  private static readonly MINUTES_IN_HOUR = 60;
+  private static readonly SECONDS_IN_MINUTE = 60;
   private static readonly MS_IN_SECOND = 1000;
 
   constructor() {

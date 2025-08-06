@@ -15,10 +15,10 @@ export class Scheduler {
   private readonly intervalMinutes: number;
 
   // Time constants
-  private static readonly MINUTES_IN_HOUR = 60; // eslint-disable-line no-magic-numbers
+  private static readonly MINUTES_IN_HOUR = 60;
   private static readonly MS_IN_SECOND = 1000;
-  private static readonly SECONDS_IN_MINUTE = 60; // eslint-disable-line no-magic-numbers
-  private static readonly MINUTES_IN_DAY = 1440; // eslint-disable-line no-magic-numbers
+  private static readonly SECONDS_IN_MINUTE = 60;
+  private static readonly MINUTES_IN_DAY = 1440;
 
   constructor() {
     this.intervalMinutes = config.monitoring.checkIntervalMinutes;

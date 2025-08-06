@@ -184,6 +184,31 @@ npm install <package-name>@<version>
 - Lowering error levels: "@typescript-eslint/no-any": "warn" → "off"
 ```
 
+#### ESLint Disable Comments Policy
+**コメントによるESLint警告の抑制は厳格に禁止**
+
+以下のESLint無効化コメントの使用は一切禁止されています：
+```typescript
+// 禁止例
+/* eslint-disable */
+/* eslint-disable-next-line */
+/* eslint-disable-line */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// @ts-ignore
+// @ts-nocheck
+```
+
+**警告への対処方法**：
+1. **コードの修正を優先**: 警告の根本原因を解決する
+2. **型安全性の確保**: `any`型を避け、適切な型定義を行う
+3. **リファクタリング**: 複雑度が高い場合は関数を分割
+4. **設計の見直し**: ルール違反が多い場合は設計を再検討
+
+**例外なし**: 技術的制約や外部ライブラリの問題であっても、コメントによる抑制は許可されません。代わりに以下の対応を検討：
+- 型定義ファイル（`.d.ts`）の作成
+- ラッパー関数の実装
+- 代替ライブラリの検討
+
 #### Regular Code Quality Checks
 Execute the following full checks regularly during development:
 

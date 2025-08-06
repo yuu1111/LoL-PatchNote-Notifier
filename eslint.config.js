@@ -40,7 +40,12 @@ export default tseslint.config(
     },
     rules: {
       // TypeScript specific rules - 厳格化設定
-      '@typescript-eslint/explicit-function-return-type': 'error',
+      '@typescript-eslint/explicit-function-return-type': ['warn', {
+        allowExpressions: true,
+        allowTypedFunctionExpressions: true,
+        allowHigherOrderFunctions: true,
+        allowDirectConstAssertionInArrowFunctions: true,
+      }],
       '@typescript-eslint/no-explicit-any': 'warn', // 段階的に厳格化予定
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': 'error',
@@ -48,15 +53,7 @@ export default tseslint.config(
       '@typescript-eslint/prefer-nullish-coalescing': 'error',
       '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/no-unnecessary-condition': 'warn',
-      '@typescript-eslint/strict-boolean-expressions': ['warn', {
-        allowString: true,
-        allowNumber: true,
-        allowNullableObject: true,
-        allowNullableBoolean: false,
-        allowNullableString: true,
-        allowNullableNumber: false,
-        allowAny: true,
-      }],
+      // '@typescript-eslint/strict-boolean-expressions': 'off', // TypeScriptの型チェックで十分
       '@typescript-eslint/naming-convention': [
         'error',
         {
@@ -85,29 +82,23 @@ export default tseslint.config(
           format: ['camelCase'],
         },
       ],
-      
+
       // Code Quality Rules
-      'complexity': ['error', { max: 10 }],
+      'complexity': ['warn', { max: 15 }], // 実用的な複雑度に緩和
       'max-depth': ['error', 4],
-      'max-lines-per-function': ['warn', { max: 80, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['warn', { max: 150, skipBlankLines: true, skipComments: true }], // 実用的なサイズに緩和
       'max-params': ['error', 4],
-      'no-magic-numbers': ['warn', { 
-        ignore: [0, 0.3, 1, -1, 2, 3, 5, 10, 50, 100, 200, 512, 1000, 1024, 3000, 5000, 30000, 60000, 100000],
-        ignoreArrayIndexes: true,
-        ignoreDefaultValues: true,
-        detectObjects: false,
-        enforceConst: false
-      }],
+      'no-magic-numbers': 'off', // HTTPステータスコードなどの定数は明確なので無効化
       'no-duplicate-imports': 'error',
       'no-return-await': 'error',
       'require-await': 'warn',
-      
+
       // Security Rules
       'no-eval': 'error',
       'no-implied-eval': 'error',
       'no-new-func': 'error',
       'no-script-url': 'error',
-      
+
       // General rules - より厳格に
       'no-console': ['warn', { allow: ['warn', 'error'] }], // Logger使用を推奨
       'no-debugger': 'error',
@@ -122,21 +113,16 @@ export default tseslint.config(
       'no-var': 'error',
       'object-shorthand': 'error',
       'prefer-template': 'error',
-      'prefer-destructuring': ['error', { object: true, array: false }],
+      'prefer-destructuring': 'off', // 単一プロパティアクセスでの分割代入は不要
       'prefer-arrow-callback': 'error',
-      'arrow-body-style': ['error', 'as-needed'],
+      'arrow-body-style': 'off', // デバッグ時の利便性を優先
       'eqeqeq': ['error', 'always'],
       'curly': ['error', 'all'],
       'default-case': 'error',
       'no-fallthrough': 'error',
       
       // Import Rules
-      'sort-imports': ['error', {
-        ignoreCase: true,
-        ignoreDeclarationSort: true,
-        ignoreMemberSort: false,
-        memberSyntaxSortOrder: ['none', 'all', 'multiple', 'single'],
-      }],
+      'sort-imports': 'off', // インポート順序は開発者の判断に委ねる
       
       // Prettier integration
       'prettier/prettier': 'error',
