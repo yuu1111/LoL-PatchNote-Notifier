@@ -15,10 +15,10 @@ import type { AnyNode, Element } from 'domhandler';
 // Internal utilities
 import { httpClient } from '../utils/httpClient';
 import { Logger } from '../utils/logger';
-import { config } from '../config';
+import { config } from '../config/config';
 
 // Type definitions
-import { type PatchNote, ScrapingError } from '../types';
+import { type PatchNote, ScrapingError } from '../types/types';
 import {
   type DetailedPatchInfo,
   type ExtractedPatchData,

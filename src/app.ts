@@ -11,7 +11,7 @@ import { GeminiSummarizer } from './services/GeminiSummarizer';
 import { StateManager } from './services/StateManager';
 import { Scheduler } from './services/Scheduler';
 import { Logger } from './utils/logger';
-import { config } from './config';
+import { config } from './config/config';
 import {
   AppError,
   DiscordError,
@@ -19,7 +19,7 @@ import {
   NetworkError,
   type PatchNote,
   ScrapingError,
-} from './types';
+} from './types/types';
 
 /**
  * メインアプリケーションクラス

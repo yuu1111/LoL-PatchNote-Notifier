@@ -6,8 +6,8 @@
 import path from 'path';
 import { FileStorage } from '../utils/fileStorage';
 import { Logger } from '../utils/logger';
-import { config } from '../config';
-import { AppError, type AppState, type PatchNote } from '../types';
+import { config } from '../config/config';
+import { AppError, type AppState, type PatchNote } from '../types/types';
 
 export class StateManager {
   private readonly stateFilePath: string;

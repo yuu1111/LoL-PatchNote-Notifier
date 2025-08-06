@@ -4,9 +4,9 @@
  */
 
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios';
-import { config } from '../config';
+import { config } from '../config/config';
 import { Logger } from './logger';
-import { type HttpResponse, NetworkError } from '../types';
+import { type HttpResponse, NetworkError } from '../types/types';
 
 /**
  * Rate limiter for HTTP requests

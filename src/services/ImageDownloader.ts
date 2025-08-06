@@ -8,8 +8,8 @@ import path from 'path';
 import { httpClient } from '../utils/httpClient';
 import { FileStorage } from '../utils/fileStorage';
 import { Logger } from '../utils/logger';
-import { config } from '../config';
-import { AppError, NetworkError } from '../types';
+import { config } from '../config/config';
+import { AppError, NetworkError } from '../types/types';
 
 export class ImageDownloader {
   private readonly imagesDir: string;

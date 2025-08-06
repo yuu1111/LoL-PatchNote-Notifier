@@ -3,7 +3,7 @@
  * Environment variables and app settings
  */
 
-import type { AppConfig } from '../types';
+import type { AppConfig } from '../types/types';
 
 /**
  * Validate required environment variables
@@ -55,7 +55,7 @@ function parseEnvFloat(envVar: string | undefined, defaultValue: string): number
 function createGeminiConfig(apiKey: string): AppConfig['gemini'] {
   return {
     apiKey,
-    model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
+    model: process.env.GEMINI_MODEL ?? 'gemini-2.5-flash',
     temperature: parseEnvFloat(process.env.GEMINI_TEMPERATURE, '0.3'),
     maxTokens: parseEnvInt(process.env.GEMINI_MAX_TOKENS, '8192'),
     timeout: parseEnvInt(process.env.GEMINI_TIMEOUT, '60000'),

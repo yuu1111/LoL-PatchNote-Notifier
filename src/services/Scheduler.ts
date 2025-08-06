@@ -4,8 +4,8 @@
  */
 
 import { Logger } from '../utils/logger';
-import { config } from '../config';
-import { AppError } from '../types';
+import { config } from '../config/config';
+import { AppError } from '../types/types';
 
 export class Scheduler {
   private intervalId: NodeJS.Timeout | null = null;

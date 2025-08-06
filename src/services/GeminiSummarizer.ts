@@ -4,8 +4,8 @@
  */
 
 import { type GenerativeModel, GoogleGenerativeAI } from '@google/generative-ai';
-import type { GeminiResult, GeminiSummary, PatchNote } from '../types';
-import { config } from '../config';
+import type { GeminiResult, GeminiSummary, PatchNote } from '../types/types';
+import { config } from '../config/config';
 import { Logger } from '../utils/logger';
 import { FileStorage } from '../utils/fileStorage';
 import path from 'path';
@@ -17,12 +17,12 @@ export class GeminiSummarizer {
   private readonly requestTimeout: number;
 
   // Time constants
-  private static readonly DAYS_IN_WEEK = 7; // eslint-disable-line no-magic-numbers
-  private static readonly HOURS_IN_DAY = 24; // eslint-disable-line no-magic-numbers
-  private static readonly MINUTES_IN_HOUR = 60; // eslint-disable-line no-magic-numbers
-  private static readonly SECONDS_IN_MINUTE = 60; // eslint-disable-line no-magic-numbers
+  private static readonly DAYS_IN_WEEK = 7;
+  private static readonly HOURS_IN_DAY = 24;
+  private static readonly MINUTES_IN_HOUR = 60;
+  private static readonly SECONDS_IN_MINUTE = 60;
   private static readonly MS_IN_SECOND = 1000;
-  private static readonly CACHE_MAX_AGE_DAYS = 7; // eslint-disable-line no-magic-numbers
+  private static readonly CACHE_MAX_AGE_DAYS = 7;
 
   constructor() {
     this.maxRetries = config.gemini.maxRetries;

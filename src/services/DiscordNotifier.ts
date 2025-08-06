@@ -7,23 +7,23 @@ import fs from 'fs/promises';
 import FormData from 'form-data';
 import { httpClient } from '../utils/httpClient';
 import { Logger } from '../utils/logger';
-import { config } from '../config';
+import { config } from '../config/config';
 import {
   type DiscordEmbed,
   DiscordError,
   type DiscordWebhookPayload,
   type GeminiSummary,
   type PatchNote,
-} from '../types';
+} from '../types/types';
 
 export class DiscordNotifier {
   private readonly webhookUrl: string;
 
   // HTTP Status codes
   private static readonly HTTP_STATUS_OK_MIN = 200;
-  private static readonly HTTP_STATUS_OK_MAX = 300; // eslint-disable-line no-magic-numbers
-  private static readonly HTTP_STATUS_INTERNAL_ERROR = 500; // eslint-disable-line no-magic-numbers
-  private static readonly HTTP_STATUS_RATE_LIMIT = 429; // eslint-disable-line no-magic-numbers
+  private static readonly HTTP_STATUS_OK_MAX = 300;
+  private static readonly HTTP_STATUS_INTERNAL_ERROR = 500;
+  private static readonly HTTP_STATUS_RATE_LIMIT = 429;
 
   constructor() {
     this.webhookUrl = config.discord.webhookUrl;
