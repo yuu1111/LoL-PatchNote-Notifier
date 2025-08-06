@@ -17,13 +17,13 @@ const logFormat = winston.format.combine(
   winston.format.errors({ stack: true }),
   winston.format.splat(),
   // セキュリティ強化: 機密情報の自動マスキング
-  winston.format.printf((info) => {
+  winston.format.printf(info => {
     // メッセージと追加データの機密情報をマスキング
     const maskedMessage =
       typeof info.message === 'string' ? maskForLogging(info.message) : info.message;
 
     const { timestamp, level, message: _message, ...metadata } = info;
-    const maskedMetadata = maskForLogging(metadata);
+    const maskedMetadata = maskForLogging(metadata) as Record<string, unknown>;
 
     // エラーの場合はスタックトレースもサニタイズ
     if (info.error instanceof Error) {
@@ -36,7 +36,7 @@ const logFormat = winston.format.combine(
       message: maskedMessage,
       ...maskedMetadata,
     });
-  }),
+  })
 );
 
 const consoleFormat = winston.format.combine(
@@ -74,7 +74,7 @@ const consoleFormat = winston.format.combine(
     msg += ` ${maskedMessage}`;
 
     // メタデータがある場合は表示
-    const filteredMetadata = { ...maskedMetadata };
+    const filteredMetadata = { ...(maskedMetadata as Record<string, unknown>) };
     delete filteredMetadata.service; // serviceは表示しない
     if (Object.keys(filteredMetadata).length > 0) {
       const metadataColor = '\x1b[90m'; // グレー
@@ -122,9 +122,9 @@ export class Logger {
 
   public static error(message: string, error?: unknown): void {
     if (error instanceof Error) {
-      logger.error(message, { 
-        error: sanitizeErrorMessage(error.message), 
-        stack: sanitizeErrorMessage(error.stack ?? '') 
+      logger.error(message, {
+        error: sanitizeErrorMessage(error.message),
+        stack: sanitizeErrorMessage(error.stack ?? ''),
       });
     } else if (error !== undefined) {
       logger.error(message, { error: sanitizeErrorMessage(String(error)) });
@@ -154,13 +154,18 @@ export class Logger {
    */
   public static secure(level: string, message: string, data?: unknown): void {
     const maskedData = data ? maskForLogging(data) : undefined;
-    (logger as any)[level](message, maskedData);
+    const loggerWithMethod = logger as winston.Logger &
+      Record<string, (message: string, data?: unknown) => void>;
+    const logMethod = loggerWithMethod[level];
+    if (logMethod) {
+      logMethod(message, maskedData);
+    }
   }
 
   /**
    * アプリケーション開始ログ
    */
-  public static startup(message: string, config?: Record<string, any>): void {
+  public static startup(message: string, config?: Record<string, unknown>): void {
     if (config) {
       const masked = maskForLogging(config);
       logger.info(message, { config: masked });
@@ -172,7 +177,7 @@ export class Logger {
   /**
    * セキュリティ監査ログ
    */
-  public static audit(action: string, details: Record<string, any>): void {
+  public static audit(action: string, details: Record<string, unknown>): void {
     logger.info(`Security Audit: ${action}`, maskForLogging(details));
   }
 }

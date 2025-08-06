@@ -79,7 +79,7 @@ function applyMasking(text: string, config: Required<MaskOptions>): string {
       maskedText,
       SENSITIVE_PATTERNS.apiKeys,
       '[API_KEY_MASKED]',
-      config.preserveLength,
+      config.preserveLength
     );
   }
 
@@ -88,7 +88,7 @@ function applyMasking(text: string, config: Required<MaskOptions>): string {
       maskedText,
       SENSITIVE_PATTERNS.webhooks,
       '[WEBHOOK_MASKED]',
-      config.preserveLength,
+      config.preserveLength
     );
   }
 
@@ -110,12 +110,12 @@ function maskPatterns(
   text: string,
   patterns: RegExp[],
   replacement: string,
-  preserveLength: boolean,
+  preserveLength: boolean
 ): string {
   let maskedText = text;
-  patterns.forEach((pattern) => {
-    maskedText = maskedText.replace(pattern, (match) =>
-      preserveLength ? '*'.repeat(match.length) : replacement,
+  patterns.forEach(pattern => {
+    maskedText = maskedText.replace(pattern, match =>
+      preserveLength ? '*'.repeat(match.length) : replacement
     );
   });
   return maskedText;
@@ -126,8 +126,8 @@ function maskPatterns(
  */
 function maskPersonalInfoPatterns(text: string, preserveLength: boolean): string {
   let maskedText = text;
-  SENSITIVE_PATTERNS.personalInfo.forEach((pattern) => {
-    maskedText = maskedText.replace(pattern, (match) => {
+  SENSITIVE_PATTERNS.personalInfo.forEach(pattern => {
+    maskedText = maskedText.replace(pattern, match => {
       if (match.includes('@')) {
         return maskEmail(match);
       }
@@ -153,8 +153,8 @@ function maskEmail(email: string): string {
  */
 function maskDiscordIdPatterns(text: string, preserveLength: boolean): string {
   let maskedText = text;
-  SENSITIVE_PATTERNS.discordIds.forEach((pattern) => {
-    maskedText = maskedText.replace(pattern, (match) => {
+  SENSITIVE_PATTERNS.discordIds.forEach(pattern => {
+    maskedText = maskedText.replace(pattern, match => {
       if (match.length >= DISCORD_ID_MIN_LENGTH) {
         return `${match.substring(0, DISCORD_ID_PREFIX_LENGTH)}***${match.substring(match.length - DISCORD_ID_SUFFIX_LENGTH)}`;
       }
@@ -167,17 +167,17 @@ function maskDiscordIdPatterns(text: string, preserveLength: boolean): string {
 /**
  * ログ出力時の機密情報マスキング
  */
-export function maskForLogging(data: any): any {
+export function maskForLogging(data: unknown): unknown {
   if (typeof data === 'string') {
     return maskSensitiveInfo(data, { preserveLength: false });
   }
 
   if (typeof data === 'object' && data !== null) {
     if (Array.isArray(data)) {
-      return data.map((item) => maskForLogging(item));
+      return data.map(item => maskForLogging(item));
     }
 
-    const masked: Record<string, any> = {};
+    const masked: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(data)) {
       // 特定のキー名は完全にマスク
       if (isSensitiveKey(key)) {
@@ -215,7 +215,7 @@ function isSensitiveKey(key: string): boolean {
   ];
 
   const lowerKey = key.toLowerCase();
-  return sensitiveKeywords.some((keyword) => lowerKey.includes(keyword));
+  return sensitiveKeywords.some(keyword => lowerKey.includes(keyword));
 }
 
 /**
@@ -243,11 +243,15 @@ export function sanitizeErrorMessage(error: Error | string): string {
 /**
  * 設定値の検証とマスキング
  */
-export function validateAndMaskConfig(config: Record<string, any>): {
-  masked: Record<string, any>;
+export function validateAndMaskConfig(config: Record<string, unknown>): {
+  masked: Record<string, unknown>;
   securityIssues: string[];
 } {
-  const masked = maskForLogging(config);
+  const maskedResult = maskForLogging(config);
+  const masked =
+    maskedResult && typeof maskedResult === 'object' && !Array.isArray(maskedResult)
+      ? (maskedResult as Record<string, unknown>)
+      : {};
   const securityIssues: string[] = [];
 
   // APIキーの強度チェック

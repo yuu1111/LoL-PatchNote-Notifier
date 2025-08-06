@@ -4,6 +4,7 @@
  */
 
 import type * as cheerio from 'cheerio';
+import type { Element } from 'domhandler';
 import { Logger } from '../../utils/logger';
 
 /**
@@ -16,7 +17,7 @@ export interface DebugSession {
   url?: string;
   operations: DebugOperation[];
   metrics: DebugMetrics;
-  context: Record<string, any>;
+  context: Record<string, unknown>;
 }
 
 /**
@@ -27,8 +28,8 @@ export interface DebugOperation {
   type: DebugOperationType;
   timestamp: Date;
   duration?: number;
-  data: any;
-  result?: any;
+  data: unknown;
+  result?: unknown;
   error?: string;
 }
 
@@ -152,17 +153,17 @@ export interface DebuggerConfig {
  * ScraperDebuggerインターフェース
  */
 export interface ScraperDebuggerInterface {
-  startSession(url?: string, context?: Record<string, any>): string;
+  startSession(url?: string, context?: Record<string, unknown>): string;
   endSession(sessionId: string): DebugSession | null;
   analyzePageStructure($: cheerio.CheerioAPI, sessionId?: string): PageStructureAnalysis;
   analyzePatchElements(
     $: cheerio.CheerioAPI,
-    patchElement: cheerio.Cheerio<any>,
+    patchElement: cheerio.Cheerio<Element>,
     sessionId?: string
   ): PatchElementAnalysis;
   analyzeImages(
     $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<Element>,
     sessionId?: string
   ): ImageAnalysis;
   exportSession(sessionId: string, format: ExportFormat): string;
@@ -221,7 +222,7 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
   /**
    * デバッグセッション開始
    */
-  public startSession(url?: string, context: Record<string, any> = {}): string {
+  public startSession(url?: string, context: Record<string, unknown> = {}): string {
     const sessionId = this.generateSessionId();
     const session: DebugSession = {
       id: sessionId,
@@ -339,7 +340,7 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
    */
   public analyzePatchElements(
     $: cheerio.CheerioAPI,
-    patchElement: cheerio.Cheerio<any>,
+    patchElement: cheerio.Cheerio<Element>,
     sessionId?: string
   ): PatchElementAnalysis {
     const startTime = performance.now();
@@ -363,7 +364,7 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
    */
   public analyzeImages(
     $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<Element>,
     sessionId?: string
   ): ImageAnalysis {
     const startTime = performance.now();
@@ -478,7 +479,7 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
   /**
    * デバッグ用：パッチ要素情報をログ出力（後方互換性）
    */
-  public logPatchElement($: cheerio.CheerioAPI, patchElement: cheerio.Cheerio<any>): void {
+  public logPatchElement($: cheerio.CheerioAPI, patchElement: cheerio.Cheerio<Element>): void {
     const analysis = this.analyzePatchElements($, patchElement);
 
     Logger.debug(`Found patch element with tag: ${analysis.tagName}`);
@@ -497,7 +498,7 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
   /**
    * コンテナ内の画像情報をログ出力（後方互換性）
    */
-  public logContainerImages($: cheerio.CheerioAPI, container: cheerio.Cheerio<any>): void {
+  public logContainerImages($: cheerio.CheerioAPI, container: cheerio.Cheerio<Element>): void {
     const analysis = this.analyzeImages($, container);
 
     Logger.debug(`Total images in container: ${analysis.totalImages}`);
@@ -536,7 +537,7 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
 
   private buildPatchElementAnalysis(
     $: cheerio.CheerioAPI,
-    patchElement: cheerio.Cheerio<any>
+    patchElement: cheerio.Cheerio<Element>
   ): PatchElementAnalysis {
     const hrefAttr = patchElement.attr('href');
     return {
@@ -717,7 +718,7 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
   private calculateStructureDepth($: cheerio.CheerioAPI): number {
     let maxDepth = 0;
 
-    const calculateDepth = (element: cheerio.Cheerio<any>, currentDepth: number): void => {
+    const calculateDepth = (element: cheerio.Cheerio<Element>, currentDepth: number): void => {
       maxDepth = Math.max(maxDepth, currentDepth);
       element.children().each((_, child) => {
         calculateDepth($(child), currentDepth + 1);
@@ -749,12 +750,12 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
     return Array.from(selectors).slice(0, ScraperDebugger.MAX_UNIQUE_SELECTORS);
   }
 
-  private extractAttributes(element: cheerio.Cheerio<any>): Record<string, string> {
+  private extractAttributes(element: cheerio.Cheerio<Element>): Record<string, string> {
     const attributes: Record<string, string> = {};
 
     if (element.length > 0) {
       const el = element.get(0);
-      if (el && 'attribs' in el && el.attribs) {
+      if (el && 'attribs' in el) {
         Object.assign(attributes, el.attribs);
       }
     }
@@ -762,7 +763,7 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
     return attributes;
   }
 
-  private analyzeChildren($: cheerio.CheerioAPI, element: cheerio.Cheerio<any>): ElementInfo[] {
+  private analyzeChildren($: cheerio.CheerioAPI, element: cheerio.Cheerio<Element>): ElementInfo[] {
     const children: ElementInfo[] = [];
 
     element.children().each((_, child) => {
@@ -781,7 +782,7 @@ export class ScraperDebugger implements ScraperDebuggerInterface {
 
   private extractImageDetails(
     $: cheerio.CheerioAPI,
-    images: cheerio.Cheerio<any>
+    images: cheerio.Cheerio<Element>
   ): ImageElementInfo[] {
     const details: ImageElementInfo[] = [];
 

@@ -10,6 +10,7 @@
 
 // External dependencies
 import * as cheerio from 'cheerio';
+import type { AnyNode, Element } from 'domhandler';
 
 // Internal utilities
 import { httpClient } from '../utils/httpClient';
@@ -19,9 +20,9 @@ import { config } from '../config';
 // Type definitions
 import { type PatchNote, ScrapingError } from '../types';
 import {
-  type PatchScraperConfig,
   type DetailedPatchInfo,
   type ExtractedPatchData,
+  type PatchScraperConfig,
   type SelectorSet,
 } from './types/PatchScraperTypes';
 
@@ -148,7 +149,7 @@ export class PatchScraper {
 
       // デバッグ: パッチ要素のログ
       if (this.scraperDebugger) {
-        this.scraperDebugger.logPatchElement($, patchElement);
+        this.scraperDebugger.logPatchElement($, patchElement as cheerio.Cheerio<Element>);
       }
 
       // パッチデータの抽出
@@ -177,7 +178,7 @@ export class PatchScraper {
    */
   private extractPatchData(
     $: cheerio.CheerioAPI,
-    patchElement: cheerio.Cheerio<any>
+    patchElement: cheerio.Cheerio<AnyNode>
   ): ExtractedPatchData {
     // タイトル抽出
     const titleResult = this.htmlParser.extractTitle($, patchElement, this.selectors.title);
@@ -395,10 +396,7 @@ export class PatchScraper {
    * 基本スクレイピング成功時のログ出力（詳細情報なし）
    */
   private logBasicScrapingSuccess(patchNote: PatchNote): void {
-    const details = [
-      patchNote.title,
-      patchNote.imageUrl ? '(画像あり)' : '',
-    ]
+    const details = [patchNote.title, patchNote.imageUrl ? '(画像あり)' : '']
       .filter(Boolean)
       .join(' ');
 

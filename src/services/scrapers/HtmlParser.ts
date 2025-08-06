@@ -3,6 +3,7 @@
  */
 
 import type * as cheerio from 'cheerio';
+import type { AnyNode } from 'domhandler';
 import type { Logger } from '../../utils/logger';
 import type { ImageValidatorInterface } from './ImageValidator';
 
@@ -27,14 +28,14 @@ export interface ParseResult<T> {
   attemptCount: number;
   parseTime: number;
   error?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
  * 要素検索結果
  */
 export interface ElementSearchResult {
-  element: cheerio.Cheerio<any> | null;
+  element: cheerio.Cheerio<AnyNode> | null;
   selector: string;
   fallbackLevel: number;
   searchTime: number;
@@ -86,7 +87,7 @@ export interface ParseMetrics {
 interface CacheEntry<T> {
   value: T;
   timestamp: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 /**
@@ -97,8 +98,8 @@ export interface AdvancedPattern {
   selectors: string[];
   xpath?: string;
   regex?: RegExp;
-  validator?: (element: cheerio.Cheerio<any>) => boolean;
-  transformer?: (element: cheerio.Cheerio<any>) => any;
+  validator?: (element: cheerio.Cheerio<AnyNode>) => boolean;
+  transformer?: (element: cheerio.Cheerio<AnyNode>) => unknown;
   priority: number;
 }
 
@@ -108,8 +109,8 @@ export interface AdvancedPattern {
 export interface PatternMatch {
   pattern: string;
   matches: {
-    element: cheerio.Cheerio<any>;
-    value: any;
+    element: cheerio.Cheerio<AnyNode>;
+    value: unknown;
     confidence: number;
     position: { x: number; y: number };
   }[];
@@ -173,7 +174,7 @@ export interface ParsingTask {
   id: string;
   type: 'extract' | 'search' | 'analyze';
   selectors: string[];
-  options?: any;
+  options?: Record<string, unknown>;
   priority: number;
 }
 
@@ -181,7 +182,7 @@ export interface ParsingTask {
  * XPath解析結果
  */
 export interface XPathResult {
-  nodes: any[];
+  nodes: unknown[];
   count: number;
   xpath: string;
   processingTime: number;
@@ -194,7 +195,7 @@ export interface StreamChunk {
   data: string;
   position: number;
   isComplete: boolean;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 /**
@@ -204,24 +205,24 @@ export interface HtmlParserInterface {
   findElement($: cheerio.CheerioAPI, selectors: string[]): ElementSearchResult;
   extractTitle(
     $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     titleSelectors: string[]
   ): ParseResult<string>;
   extractUrl(
     $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     urlSelectors: string[]
   ): ParseResult<string>;
   extractImageUrl(
     $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     imageSelectors: string[]
   ): ParseResult<string>;
   extractVersion(title: string): string;
   normalizeUrl(url: string): string;
   getMetrics(): ParseMetrics;
   // 高度な解析機能
-  parseWithXPath(html: string, xpath: string): ParseResult<any[]>;
+  parseWithXPath(html: string, xpath: string): Promise<ParseResult<unknown[]>>;
   parseWithAdvancedPatterns(
     $: cheerio.CheerioAPI,
     patterns: AdvancedPattern[]
@@ -230,9 +231,9 @@ export interface HtmlParserInterface {
   streamParse(
     htmlStream: ReadableStream,
     selectors: string[]
-  ): AsyncGenerator<ParseResult<any>, void, unknown>;
+  ): AsyncGenerator<ParseResult<unknown>, void, unknown>;
   manipulateDOM($: cheerio.CheerioAPI, operations: DOMOperation[]): ParseResult<cheerio.CheerioAPI>;
-  parallelParse($: cheerio.CheerioAPI, tasks: ParsingTask[]): Promise<ParseResult<any>[]>;
+  parallelParse($: cheerio.CheerioAPI, tasks: ParsingTask[]): Promise<ParseResult<unknown>[]>;
 }
 
 /**
@@ -256,8 +257,16 @@ export class HtmlParser implements HtmlParserInterface {
     HtmlParser.SIXTY_FOUR_CONSTANT * HtmlParser.KILOBYTE_CONSTANT; // 64KB
   private static readonly DEFAULT_MAX_PARALLEL_TASKS = HtmlParser.FOUR_CONSTANT;
 
+  // 言語検出・分析用定数
+  private static readonly LANGUAGE_DETECTION_RATIO_THRESHOLD = 0.2;
+  private static readonly CONFIDENCE_THRESHOLD = 0.1;
+  private static readonly TWENTY_CONSTANT = 20;
+  private static readonly READABILITY_CONSTANT_206 = 206.835;
+  private static readonly READABILITY_CONSTANT_1 = 1.015;
+  private static readonly READABILITY_CONSTANT_84 = 84.6;
+
   private readonly config: HtmlParserConfig;
-  private readonly cache = new Map<string, CacheEntry<any>>();
+  private readonly cache = new Map<string, CacheEntry<unknown>>();
   private readonly metrics: ParseMetrics;
   private readonly startTime: number;
   private readonly performanceMonitor = {
@@ -377,7 +386,7 @@ export class HtmlParser implements HtmlParserInterface {
    */
   public extractTitle(
     $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     titleSelectors: string[]
   ): ParseResult<string> {
     const startTime = performance.now();
@@ -421,7 +430,7 @@ export class HtmlParser implements HtmlParserInterface {
    */
   public extractUrl(
     $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     urlSelectors: string[]
   ): ParseResult<string> {
     const startTime = performance.now();
@@ -432,7 +441,13 @@ export class HtmlParser implements HtmlParserInterface {
     if (cachedResult) return cachedResult;
 
     try {
-      const result = this.performUrlExtraction($, container, urlSelectors, cacheKey, startTime);
+      const result = this.performUrlExtraction({
+        $,
+        container,
+        urlSelectors,
+        cacheKey,
+        startTime,
+      });
       return result;
     } catch (error) {
       this.updateOperationMetrics('extractUrl', false);
@@ -447,7 +462,7 @@ export class HtmlParser implements HtmlParserInterface {
    */
   public extractImageUrl(
     $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     imageSelectors: string[]
   ): ParseResult<string> {
     const startTime = performance.now();
@@ -458,13 +473,13 @@ export class HtmlParser implements HtmlParserInterface {
     if (cachedResult) return cachedResult;
 
     try {
-      const result = this.performImageUrlExtraction(
+      const result = this.performImageUrlExtraction({
         $,
         container,
         imageSelectors,
         cacheKey,
-        startTime
-      );
+        startTime,
+      });
       return result;
     } catch (error) {
       this.updateOperationMetrics('extractImageUrl', false);
@@ -549,7 +564,7 @@ export class HtmlParser implements HtmlParserInterface {
   public findElementLegacy(
     $: cheerio.CheerioAPI,
     selectors: string[]
-  ): cheerio.Cheerio<any> | null {
+  ): cheerio.Cheerio<AnyNode> | null {
     const result = this.findElement($, selectors);
     return result.element;
   }
@@ -560,14 +575,20 @@ export class HtmlParser implements HtmlParserInterface {
     if (this.config.enableCaching) {
       const cached = this.getFromCache<string>(cacheKey);
       if (cached) {
-        return this.createSuccessResult(cached, '', true, 1, performance.now() - startTime);
+        return this.createSuccessResult({
+          value: cached,
+          selector: '',
+          fallbackUsed: true,
+          attemptCount: 1,
+          parseTime: performance.now() - startTime,
+        });
       }
     }
     return null;
   }
 
   private searchTitleInContainer(
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     titleSelectors: string[],
     cacheKey: string,
     startTime: number
@@ -576,37 +597,37 @@ export class HtmlParser implements HtmlParserInterface {
 
     for (const selector of titleSelectors) {
       attemptCount++;
-      const titleElement = container.find(selector).first();
+      const titleAnyNode = container.find(selector).first();
 
-      if (titleElement.length > 0) {
-        const fullText = titleElement.text().trim();
-        if (fullText) {
-          const patchTitle = this.extractPatchTitle(fullText);
-          if (patchTitle) {
-            const result = this.createSuccessResult(
-              patchTitle,
-              selector,
-              false,
-              attemptCount,
-              performance.now() - startTime
-            );
+      if (titleAnyNode.length === 0) continue;
 
-            // キャッシュに保存
-            if (this.config.enableCaching) {
-              this.saveToCache(cacheKey, patchTitle, { selector, method: 'container' });
-            }
+      const fullText = titleAnyNode.text().trim();
+      if (!fullText) continue;
 
-            this.updateOperationMetrics('extractTitle', true);
-            return result;
-          }
-        }
+      const patchTitle = this.extractPatchTitle(fullText);
+      if (!patchTitle) continue;
+
+      const result = this.createSuccessResult({
+        value: patchTitle,
+        selector,
+        fallbackUsed: false,
+        attemptCount,
+        parseTime: performance.now() - startTime,
+      });
+
+      // キャッシュに保存
+      if (this.config.enableCaching) {
+        this.saveToCache(cacheKey, patchTitle, { selector, method: 'container' });
       }
+
+      this.updateOperationMetrics('extractTitle', true);
+      return result;
     }
     return null;
   }
 
   private searchTitleWithFallback(
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     cacheKey: string,
     startTime: number
   ): ParseResult<string> | null {
@@ -616,13 +637,13 @@ export class HtmlParser implements HtmlParserInterface {
     if (containerText) {
       const patchTitle = this.extractPatchTitle(containerText);
       if (patchTitle) {
-        const result = this.createSuccessResult(
-          patchTitle,
-          'container-text',
-          true,
-          1,
-          performance.now() - startTime
-        );
+        const result = this.createSuccessResult({
+          value: patchTitle,
+          selector: 'container-text',
+          fallbackUsed: true,
+          attemptCount: 1,
+          parseTime: performance.now() - startTime,
+        });
 
         if (this.config.enableCaching) {
           this.saveToCache(cacheKey, patchTitle, { method: 'fallback' });
@@ -665,7 +686,13 @@ export class HtmlParser implements HtmlParserInterface {
     if (this.config.enableCaching) {
       const cached = this.getFromCache<string>(cacheKey);
       if (cached) {
-        return this.createSuccessResult(cached, '', true, 1, performance.now() - startTime);
+        return this.createSuccessResult({
+          value: cached,
+          selector: '',
+          fallbackUsed: true,
+          attemptCount: 1,
+          parseTime: performance.now() - startTime,
+        });
       }
     }
     return null;
@@ -674,13 +701,14 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * Perform URL extraction with fallback strategies
    */
-  private performUrlExtraction(
-    $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
-    urlSelectors: string[],
-    cacheKey: string,
-    startTime: number
-  ): ParseResult<string> {
+  private performUrlExtraction(params: {
+    $: cheerio.CheerioAPI;
+    container: cheerio.Cheerio<AnyNode>;
+    urlSelectors: string[];
+    cacheKey: string;
+    startTime: number;
+  }): ParseResult<string> {
+    const { $, container, urlSelectors, cacheKey, startTime } = params;
     let attemptCount = 0;
 
     // コンテナ自体がアンカータグかチェック
@@ -694,24 +722,24 @@ export class HtmlParser implements HtmlParserInterface {
     attemptCount++;
 
     // コンテナ内検索
-    const containerSearchResult = this.tryExtractFromContainerSearch(
+    const containerSearchResult = this.tryExtractFromContainerSearch({
       container,
       urlSelectors,
       cacheKey,
       startTime,
-      attemptCount + urlSelectors.length
-    );
+      attemptCount: attemptCount + urlSelectors.length,
+    });
     if (containerSearchResult) return containerSearchResult;
     attemptCount += urlSelectors.length;
 
     // フォールバック: ドキュメント全体から検索
-    const documentFallbackResult = this.tryExtractFromDocumentFallback(
+    const documentFallbackResult = this.tryExtractFromDocumentFallback({
       $,
       urlSelectors,
       cacheKey,
       startTime,
-      attemptCount + urlSelectors.length
-    );
+      attemptCount: attemptCount + urlSelectors.length,
+    });
     if (documentFallbackResult) return documentFallbackResult;
     attemptCount += urlSelectors.length;
 
@@ -728,20 +756,20 @@ export class HtmlParser implements HtmlParserInterface {
    * Try to extract URL from container href attribute
    */
   private tryExtractFromContainerHref(
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     cacheKey: string,
     startTime: number,
     attemptCount: number
   ): ParseResult<string> | null {
     const containerHref = this.getContainerHref(container);
     if (containerHref) {
-      const result = this.createSuccessResult(
-        containerHref,
-        'container-href',
-        false,
+      const result = this.createSuccessResult({
+        value: containerHref,
+        selector: 'container-href',
+        fallbackUsed: false,
         attemptCount,
-        performance.now() - startTime
-      );
+        parseTime: performance.now() - startTime,
+      });
 
       if (this.config.enableCaching) {
         this.saveToCache(cacheKey, containerHref, { method: 'container-href' });
@@ -756,23 +784,24 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * Try to extract URL from container search
    */
-  private tryExtractFromContainerSearch(
-    container: cheerio.Cheerio<any>,
-    urlSelectors: string[],
-    cacheKey: string,
-    startTime: number,
-    attemptCount: number
-  ): ParseResult<string> | null {
+  private tryExtractFromContainerSearch(params: {
+    container: cheerio.Cheerio<AnyNode>;
+    urlSelectors: string[];
+    cacheKey: string;
+    startTime: number;
+    attemptCount: number;
+  }): ParseResult<string> | null {
+    const { container, urlSelectors, cacheKey, startTime, attemptCount } = params;
     const containerUrl = this.extractUrlFromContainer(container, urlSelectors);
 
     if (containerUrl.success && containerUrl.value) {
-      const result = this.createSuccessResult(
-        containerUrl.value,
-        containerUrl.selectorUsed ?? '',
-        false,
+      const result = this.createSuccessResult({
+        value: containerUrl.value,
+        selector: containerUrl.selectorUsed ?? '',
+        fallbackUsed: false,
         attemptCount,
-        performance.now() - startTime
-      );
+        parseTime: performance.now() - startTime,
+      });
 
       if (this.config.enableCaching) {
         this.saveToCache(cacheKey, containerUrl.value, {
@@ -790,24 +819,25 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * Try to extract URL from document fallback
    */
-  private tryExtractFromDocumentFallback(
-    $: cheerio.CheerioAPI,
-    urlSelectors: string[],
-    cacheKey: string,
-    startTime: number,
-    attemptCount: number
-  ): ParseResult<string> | null {
+  private tryExtractFromDocumentFallback(params: {
+    $: cheerio.CheerioAPI;
+    urlSelectors: string[];
+    cacheKey: string;
+    startTime: number;
+    attemptCount: number;
+  }): ParseResult<string> | null {
+    const { $, urlSelectors, cacheKey, startTime, attemptCount } = params;
     if (!this.config.enableFallbackSearch) return null;
 
     const documentUrl = this.extractUrlFromDocument($, urlSelectors);
     if (documentUrl) {
-      const result = this.createSuccessResult(
-        documentUrl,
-        'document-fallback',
-        true,
+      const result = this.createSuccessResult({
+        value: documentUrl,
+        selector: 'document-fallback',
+        fallbackUsed: true,
         attemptCount,
-        performance.now() - startTime
-      );
+        parseTime: performance.now() - startTime,
+      });
 
       if (this.config.enableCaching) {
         this.saveToCache(cacheKey, documentUrl, { method: 'document-fallback' });
@@ -822,8 +852,7 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * Get href from container if it's an anchor tag
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private getContainerHref(container: cheerio.Cheerio<any>): string | null {
+  private getContainerHref(container: cheerio.Cheerio<AnyNode>): string | null {
     if (container.is('a')) {
       const href = container.attr('href');
       if (href) {
@@ -838,15 +867,15 @@ export class HtmlParser implements HtmlParserInterface {
    */
 
   private extractUrlFromContainer(
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     urlSelectors: string[]
   ): ParseResult<string> {
     for (const selector of urlSelectors) {
       if (!selector) continue;
 
-      const linkElement = container.find(selector).first();
-      if (linkElement.length > 0) {
-        const href = linkElement.attr('href');
+      const linkAnyNode = container.find(selector).first();
+      if (linkAnyNode.length > 0) {
+        const href = linkAnyNode.attr('href');
         if (href) {
           return {
             success: true,
@@ -875,10 +904,10 @@ export class HtmlParser implements HtmlParserInterface {
     for (const selector of urlSelectors) {
       if (!selector) continue;
 
-      const linkElement = $(selector).first();
-      if (linkElement.length > 0) {
-        const href = linkElement.attr('href');
-        if (href?.includes('patch')) {
+      const linkAnyNode = $(selector).first();
+      if (linkAnyNode.length > 0) {
+        const href = linkAnyNode.attr('href');
+        if (href?.includes('patch') === true) {
           return href;
         }
       }
@@ -893,7 +922,13 @@ export class HtmlParser implements HtmlParserInterface {
     if (this.config.enableCaching) {
       const cached = this.getFromCache<string>(cacheKey);
       if (cached) {
-        return this.createSuccessResult(cached, '', true, 1, performance.now() - startTime);
+        return this.createSuccessResult({
+          value: cached,
+          selector: '',
+          fallbackUsed: true,
+          attemptCount: 1,
+          parseTime: performance.now() - startTime,
+        });
       }
     }
     return null;
@@ -902,34 +937,35 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * Perform image URL extraction with fallback strategies
    */
-  private performImageUrlExtraction(
-    $: cheerio.CheerioAPI,
-    container: cheerio.Cheerio<any>,
-    imageSelectors: string[],
-    cacheKey: string,
-    startTime: number
-  ): ParseResult<string> {
+  private performImageUrlExtraction(params: {
+    $: cheerio.CheerioAPI;
+    container: cheerio.Cheerio<AnyNode>;
+    imageSelectors: string[];
+    cacheKey: string;
+    startTime: number;
+  }): ParseResult<string> {
+    const { $, container, imageSelectors, cacheKey, startTime } = params;
     let attemptCount = 0;
 
     // コンテナ内検索
-    const containerResult = this.tryExtractImageFromContainer(
+    const containerResult = this.tryExtractImageFromContainer({
       container,
       imageSelectors,
       cacheKey,
       startTime,
-      attemptCount + imageSelectors.length
-    );
+      attemptCount: attemptCount + imageSelectors.length,
+    });
     if (containerResult) return containerResult;
     attemptCount += imageSelectors.length;
 
     // フォールバック: ドキュメント全体から検索
-    const documentResult = this.tryExtractImageFromDocument(
+    const documentResult = this.tryExtractImageFromDocument({
       $,
       imageSelectors,
       cacheKey,
       startTime,
-      attemptCount + imageSelectors.length
-    );
+      attemptCount: attemptCount + imageSelectors.length,
+    });
     if (documentResult) return documentResult;
     attemptCount += imageSelectors.length;
 
@@ -945,23 +981,24 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * Try to extract image URL from container
    */
-  private tryExtractImageFromContainer(
-    container: cheerio.Cheerio<any>,
-    imageSelectors: string[],
-    cacheKey: string,
-    startTime: number,
-    attemptCount: number
-  ): ParseResult<string> | null {
+  private tryExtractImageFromContainer(params: {
+    container: cheerio.Cheerio<AnyNode>;
+    imageSelectors: string[];
+    cacheKey: string;
+    startTime: number;
+    attemptCount: number;
+  }): ParseResult<string> | null {
+    const { container, imageSelectors, cacheKey, startTime, attemptCount } = params;
     const containerImageUrl = this.findImageInContainer(container, imageSelectors);
 
     if (containerImageUrl.success && containerImageUrl.value) {
-      const result = this.createSuccessResult(
-        containerImageUrl.value,
-        containerImageUrl.selectorUsed ?? '',
-        false,
+      const result = this.createSuccessResult({
+        value: containerImageUrl.value,
+        selector: containerImageUrl.selectorUsed ?? '',
+        fallbackUsed: false,
         attemptCount,
-        performance.now() - startTime
-      );
+        parseTime: performance.now() - startTime,
+      });
 
       if (this.config.enableCaching) {
         this.saveToCache(cacheKey, containerImageUrl.value, {
@@ -979,24 +1016,25 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * Try to extract image URL from document fallback
    */
-  private tryExtractImageFromDocument(
-    $: cheerio.CheerioAPI,
-    imageSelectors: string[],
-    cacheKey: string,
-    startTime: number,
-    attemptCount: number
-  ): ParseResult<string> | null {
+  private tryExtractImageFromDocument(params: {
+    $: cheerio.CheerioAPI;
+    imageSelectors: string[];
+    cacheKey: string;
+    startTime: number;
+    attemptCount: number;
+  }): ParseResult<string> | null {
+    const { $, imageSelectors, cacheKey, startTime, attemptCount } = params;
     if (!this.config.enableFallbackSearch) return null;
 
     const documentImageUrl = this.findImageInDocument($, imageSelectors);
     if (documentImageUrl) {
-      const result = this.createSuccessResult(
-        documentImageUrl,
-        'document-fallback',
-        true,
+      const result = this.createSuccessResult({
+        value: documentImageUrl,
+        selector: 'document-fallback',
+        fallbackUsed: true,
         attemptCount,
-        performance.now() - startTime
-      );
+        parseTime: performance.now() - startTime,
+      });
 
       if (this.config.enableCaching) {
         this.saveToCache(cacheKey, documentImageUrl, { method: 'document-fallback' });
@@ -1013,37 +1051,58 @@ export class HtmlParser implements HtmlParserInterface {
    */
 
   private findImageInContainer(
-    container: cheerio.Cheerio<any>,
+    container: cheerio.Cheerio<AnyNode>,
     imageSelectors: string[]
   ): ParseResult<string> {
     for (const selector of imageSelectors) {
-      this.logger?.debug(`Trying image selector: ${selector}`);
-      const imgElement = container.find(selector).first();
-
-      if (imgElement.length > 0) {
-        const src = imgElement.attr('src') ?? imgElement.attr('data-src');
-        this.logger?.debug(`Found image element with src: ${src}`);
-
-        if (src && this.isValidImageUrl(src)) {
-          this.logger?.debug(`Valid image URL found: ${src}`);
-          return {
-            success: true,
-            value: src,
-            selectorUsed: selector,
-            fallbackUsed: false,
-            attemptCount: 1,
-            parseTime: 0,
-          };
-        } else if (src) {
-          this.logger?.debug(`Invalid or filtered image URL: ${src}`);
-        }
-      }
+      const result = this.tryImageSelector(container, selector);
+      if (result) return result;
     }
 
+    return this.createImageSearchFailureResult(imageSelectors.length);
+  }
+
+  /**
+   * 単一の画像セレクターを試行
+   */
+  private tryImageSelector(
+    container: cheerio.Cheerio<AnyNode>,
+    selector: string
+  ): ParseResult<string> | null {
+    this.logger?.debug(`Trying image selector: ${selector}`);
+    const imgAnyNode = container.find(selector).first();
+
+    if (imgAnyNode.length === 0) return null;
+
+    const src = imgAnyNode.attr('src') ?? imgAnyNode.attr('data-src');
+    this.logger?.debug(`Found image element with src: ${src}`);
+
+    if (!src) return null;
+
+    if (this.isValidImageUrl(src)) {
+      this.logger?.debug(`Valid image URL found: ${src}`);
+      return {
+        success: true,
+        value: src,
+        selectorUsed: selector,
+        fallbackUsed: false,
+        attemptCount: 1,
+        parseTime: 0,
+      };
+    }
+
+    this.logger?.debug(`Invalid or filtered image URL: ${src}`);
+    return null;
+  }
+
+  /**
+   * 画像検索失敗結果を作成
+   */
+  private createImageSearchFailureResult(attemptCount: number): ParseResult<string> {
     return {
       success: false,
       fallbackUsed: false,
-      attemptCount: imageSelectors.length,
+      attemptCount,
       parseTime: 0,
     };
   }
@@ -1055,18 +1114,37 @@ export class HtmlParser implements HtmlParserInterface {
     this.logger?.debug('Falling back to document-wide image search...');
 
     for (const selector of imageSelectors) {
-      const imgElement = $(selector).first();
-      if (imgElement.length > 0) {
-        const src = imgElement.attr('src') ?? imgElement.attr('data-src');
-        if (src && this.isValidImageUrl(src) && (src.includes('patch') || src.includes('news'))) {
-          this.logger?.debug(`Valid fallback image URL found: ${src}`);
-          return src;
-        }
-      }
+      const imageUrl = this.tryDocumentImageSelector($, selector);
+      if (imageUrl) return imageUrl;
     }
 
     this.logger?.debug('No valid image URL found');
     return null;
+  }
+
+  /**
+   * ドキュメント内で単一の画像セレクターを試行
+   */
+  private tryDocumentImageSelector($: cheerio.CheerioAPI, selector: string): string | null {
+    const imgAnyNode = $(selector).first();
+    if (imgAnyNode.length === 0) return null;
+
+    const src = imgAnyNode.attr('src') ?? imgAnyNode.attr('data-src');
+    if (!src) return null;
+
+    if (this.isValidImageUrl(src) && this.isRelevantImageUrl(src)) {
+      this.logger?.debug(`Valid fallback image URL found: ${src}`);
+      return src;
+    }
+
+    return null;
+  }
+
+  /**
+   * 関連性のある画像URLかどうかを判定
+   */
+  private isRelevantImageUrl(url: string): boolean {
+    return url.includes('patch') || url.includes('news');
   }
 
   /**
@@ -1105,7 +1183,7 @@ export class HtmlParser implements HtmlParserInterface {
           (this.metrics.cacheHitRate * this.metrics.totalParses + 1) /
           (this.metrics.totalParses + 1);
       }
-      return entry.value;
+      return entry.value as T;
     }
 
     if (entry) {
@@ -1118,7 +1196,7 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * Save to cache
    */
-  private saveToCache<T>(key: string, value: T, metadata: Record<string, any>): void {
+  private saveToCache<T>(key: string, value: T, metadata: Record<string, unknown>): void {
     this.cache.set(key, {
       value,
       timestamp: Date.now(),
@@ -1129,13 +1207,14 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * Create success result
    */
-  private createSuccessResult<T>(
-    value: T,
-    selector: string,
-    fallbackUsed: boolean,
-    attemptCount: number,
-    parseTime: number
-  ): ParseResult<T> {
+  private createSuccessResult<T>(params: {
+    value: T;
+    selector: string;
+    fallbackUsed: boolean;
+    attemptCount: number;
+    parseTime: number;
+  }): ParseResult<T> {
+    const { value, selector, fallbackUsed, attemptCount, parseTime } = params;
     return {
       success: true,
       value,
@@ -1174,8 +1253,8 @@ export class HtmlParser implements HtmlParserInterface {
    * Update selector metrics
    */
   private updateSelectorMetrics(selector: string, success: boolean): void {
-    const currentRate = this.metrics.selectorSuccessRate[selector] || 0;
-    const currentCount = this.metrics.operationDistribution[selector] || 0;
+    const currentRate = this.metrics.selectorSuccessRate[selector] ?? 0;
+    const currentCount = this.metrics.operationDistribution[selector] ?? 0;
 
     this.metrics.selectorSuccessRate[selector] =
       (currentRate * currentCount + (success ? 1 : 0)) / (currentCount + 1);
@@ -1195,7 +1274,7 @@ export class HtmlParser implements HtmlParserInterface {
       this.metrics.failedParses++;
     }
 
-    const currentCount = this.metrics.operationDistribution[operation] || 0;
+    const currentCount = this.metrics.operationDistribution[operation] ?? 0;
     this.metrics.operationDistribution[operation] = currentCount + 1;
   }
 
@@ -1245,11 +1324,11 @@ export class HtmlParser implements HtmlParserInterface {
   /**
    * XPath による解析（高度な機能）
    */
-  public parseWithXPath(html: string, xpath: string): ParseResult<any[]> {
+  public async parseWithXPath(html: string, xpath: string): Promise<ParseResult<unknown[]>> {
     const startTime = performance.now();
 
     if (!this.config.enableXPathSupport) {
-      return this.createFailureResult<any[]>(
+      return this.createFailureResult<unknown[]>(
         'XPath support is disabled',
         1,
         performance.now() - startTime
@@ -1258,28 +1337,35 @@ export class HtmlParser implements HtmlParserInterface {
 
     try {
       // XPath解析のシミュレーション（実際の実装では専用ライブラリを使用）
-      const $ = require('cheerio').load(html);
-      const results: any[] = [];
+      const cheerioModule = await import('cheerio');
+      const $ = cheerioModule.load(html);
+      const results: unknown[] = [];
 
       // XPathをCSSセレクターに変換する基本的な実装
       const cssSelector = this.convertXPathToCSS(xpath);
       if (cssSelector) {
-        $(cssSelector).each((_: number, el: any) => {
+        $(cssSelector).each((_: number, el: AnyNode) => {
           results.push({
             tagName: $(el).prop('tagName')?.toLowerCase(),
             text: $(el).text(),
-            attributes: this.extractAttributesFromElement($(el)),
+            attributes: this.extractAttributesFromAnyNode($(el)),
             html: $(el).html(),
           });
         });
       }
 
       this.updateOperationMetrics('parseWithXPath', true);
-      return this.createSuccessResult(results, xpath, false, 1, performance.now() - startTime);
+      return this.createSuccessResult({
+        value: results,
+        selector: xpath,
+        fallbackUsed: false,
+        attemptCount: 1,
+        parseTime: performance.now() - startTime,
+      });
     } catch (error) {
       this.updateOperationMetrics('parseWithXPath', false);
       const errorMessage = error instanceof Error ? error.message : 'XPath parsing failed';
-      return this.createFailureResult<any[]>(errorMessage, 1, performance.now() - startTime);
+      return this.createFailureResult<unknown[]>(errorMessage, 1, performance.now() - startTime);
     }
   }
 
@@ -1324,7 +1410,7 @@ export class HtmlParser implements HtmlParserInterface {
             const value = pattern.transformer ? pattern.transformer($el) : $el.text();
 
             // 正規表現マッチング
-            if (pattern.regex && !pattern.regex.test(value)) {
+            if (pattern.regex && !pattern.regex.test(String(value))) {
               return;
             }
 
@@ -1332,7 +1418,7 @@ export class HtmlParser implements HtmlParserInterface {
               element: $el,
               value,
               confidence: this.calculateMatchConfidence($el, pattern),
-              position: this.getElementPosition($el),
+              position: this.getAnyNodePosition($el),
             });
           });
         }
@@ -1346,13 +1432,13 @@ export class HtmlParser implements HtmlParserInterface {
       }
 
       this.updateOperationMetrics('parseWithAdvancedPatterns', true);
-      return this.createSuccessResult(
-        results,
-        'advanced-patterns',
-        false,
-        patterns.length,
-        performance.now() - startTime
-      );
+      return this.createSuccessResult({
+        value: results,
+        selector: 'advanced-patterns',
+        fallbackUsed: false,
+        attemptCount: patterns.length,
+        parseTime: performance.now() - startTime,
+      });
     } catch (error) {
       this.updateOperationMetrics('parseWithAdvancedPatterns', false);
       const errorMessage =
@@ -1387,56 +1473,9 @@ export class HtmlParser implements HtmlParserInterface {
 
     try {
       const bodyText = $('body').text();
-      const result: ContentAnalysisResult = {
-        wordCount: this.countWords(bodyText),
-        characterCount: bodyText.length,
-        paragraphCount: $('p').length,
-        headingCount: $('h1, h2, h3, h4, h5, h6').length,
-        linkCount: $('a[href]').length,
-        imageCount: $('img').length,
-        keywords: [],
-        semanticStructure: {
-          sections: [],
-          topics: [],
-          entities: [],
-        },
-        metadata: {},
-      };
+      const result = this.createBaseAnalysisResult($, bodyText);
 
-      // メタデータ抽出
-      if (options.includeMetadata) {
-        const title = $('title').text() || $('h1').first().text();
-        const description = $('meta[name="description"]').attr('content');
-        const author = $('meta[name="author"]').attr('content');
-        const publishDate = this.extractPublishDate($);
-
-        result.metadata = {
-          title,
-          ...(description && { description }),
-          ...(author && { author }),
-          ...(publishDate && { publishDate }),
-        };
-      }
-
-      // キーワード抽出
-      if (options.extractKeywords) {
-        result.keywords = this.extractKeywords(bodyText);
-      }
-
-      // 構造解析
-      if (options.analyzeStructure) {
-        result.semanticStructure = this.analyzeSemanticStructure($);
-      }
-
-      // 読みやすさ分析
-      if (options.includeReadability) {
-        result.readabilityScore = this.calculateReadabilityScore(bodyText);
-      }
-
-      // 言語検出
-      if (options.detectLanguage) {
-        result.language = this.detectLanguage(bodyText);
-      }
+      this.applyContentAnalysisOptions(result, $, bodyText, options);
 
       this.updateOperationMetrics('analyzeContent', true);
       this.logger?.debug('Content analysis completed', {
@@ -1452,12 +1491,80 @@ export class HtmlParser implements HtmlParserInterface {
   }
 
   /**
+   * 基本分析結果を作成
+   */
+  private createBaseAnalysisResult($: cheerio.CheerioAPI, bodyText: string): ContentAnalysisResult {
+    return {
+      wordCount: this.countWords(bodyText),
+      characterCount: bodyText.length,
+      paragraphCount: $('p').length,
+      headingCount: $('h1, h2, h3, h4, h5, h6').length,
+      linkCount: $('a[href]').length,
+      imageCount: $('img').length,
+      keywords: [],
+      semanticStructure: {
+        sections: [],
+        topics: [],
+        entities: [],
+      },
+      metadata: {},
+    };
+  }
+
+  /**
+   * 分析オプションを適用
+   */
+  private applyContentAnalysisOptions(
+    result: ContentAnalysisResult,
+    $: cheerio.CheerioAPI,
+    bodyText: string,
+    options: ContentAnalysisOptions
+  ): void {
+    if (options.includeMetadata) {
+      result.metadata = this.extractContentMetadata($);
+    }
+
+    if (options.extractKeywords) {
+      result.keywords = this.extractKeywords(bodyText);
+    }
+
+    if (options.analyzeStructure) {
+      result.semanticStructure = this.analyzeSemanticStructure($);
+    }
+
+    if (options.includeReadability) {
+      result.readabilityScore = this.calculateReadabilityScore(bodyText);
+    }
+
+    if (options.detectLanguage) {
+      result.language = this.detectLanguage(bodyText);
+    }
+  }
+
+  /**
+   * コンテンツメタデータを抽出
+   */
+  private extractContentMetadata($: cheerio.CheerioAPI): Record<string, unknown> {
+    const title = $('title').text() || $('h1').first().text();
+    const description = $('meta[name="description"]').attr('content');
+    const author = $('meta[name="author"]').attr('content');
+    const publishDate = this.extractPublishDate($);
+
+    return {
+      title,
+      ...(description && { description }),
+      ...(author && { author }),
+      ...(publishDate && { publishDate }),
+    };
+  }
+
+  /**
    * ストリーミング解析（非同期生成）
    */
   public async *streamParse(
     htmlStream: ReadableStream,
     selectors: string[]
-  ): AsyncGenerator<ParseResult<any>, void, unknown> {
+  ): AsyncGenerator<ParseResult<unknown>, void, unknown> {
     if (!this.config.enableStreamingParsing) {
       throw new Error('Streaming parsing is disabled');
     }
@@ -1467,6 +1574,7 @@ export class HtmlParser implements HtmlParserInterface {
     let position = 0;
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       while (true) {
         const { done, value } = await reader.read();
 
@@ -1512,7 +1620,7 @@ export class HtmlParser implements HtmlParserInterface {
     }
 
     try {
-      let successCount = 0;
+      let _successCount = 0;
 
       for (const operation of operations) {
         const element = $(operation.selector);
@@ -1522,60 +1630,19 @@ export class HtmlParser implements HtmlParserInterface {
           continue;
         }
 
-        switch (operation.type) {
-          case 'add':
-            if (operation.content) {
-              switch (operation.position) {
-                case 'before':
-                  element.before(operation.content);
-                  break;
-                case 'after':
-                  element.after(operation.content);
-                  break;
-                case 'prepend':
-                  element.prepend(operation.content);
-                  break;
-                case 'append':
-                default:
-                  element.append(operation.content);
-                  break;
-              }
-            }
-            break;
-
-          case 'remove':
-            element.remove();
-            break;
-
-          case 'modify':
-            if (operation.attributes) {
-              Object.entries(operation.attributes).forEach(([key, value]) => {
-                element.attr(key, value);
-              });
-            }
-            if (operation.content) {
-              element.text(operation.content);
-            }
-            break;
-
-          case 'replace':
-            if (operation.content) {
-              element.replaceWith(operation.content);
-            }
-            break;
+        if (this.executeDOMOperation(element, operation)) {
+          _successCount++;
         }
-
-        successCount++;
       }
 
       this.updateOperationMetrics('manipulateDOM', true);
-      return this.createSuccessResult(
-        $,
-        'dom-manipulation',
-        false,
-        operations.length,
-        performance.now() - startTime
-      );
+      return this.createSuccessResult({
+        value: $,
+        selector: 'dom-manipulation',
+        fallbackUsed: false,
+        attemptCount: operations.length,
+        parseTime: performance.now() - startTime,
+      });
     } catch (error) {
       this.updateOperationMetrics('manipulateDOM', false);
       const errorMessage = error instanceof Error ? error.message : 'DOM manipulation failed';
@@ -1593,7 +1660,7 @@ export class HtmlParser implements HtmlParserInterface {
   public async parallelParse(
     $: cheerio.CheerioAPI,
     tasks: ParsingTask[]
-  ): Promise<ParseResult<any>[]> {
+  ): Promise<ParseResult<unknown>[]> {
     const startTime = performance.now();
 
     if (!this.config.enableParallelParsing) {
@@ -1606,7 +1673,7 @@ export class HtmlParser implements HtmlParserInterface {
 
       // 並列実行の制限
       const maxConcurrent = Math.min(this.config.maxParallelTasks, tasks.length);
-      const results: ParseResult<any>[] = [];
+      const results: ParseResult<unknown>[] = [];
 
       // タスクをバッチに分割
       for (let i = 0; i < sortedTasks.length; i += maxConcurrent) {
@@ -1616,32 +1683,32 @@ export class HtmlParser implements HtmlParserInterface {
           const taskStartTime = performance.now();
 
           try {
-            let result: any;
+            let result: unknown;
 
             switch (task.type) {
               case 'extract':
-                result = this.executeExtractionTask($, task);
+                result = await Promise.resolve(this.executeExtractionTask($, task));
                 break;
               case 'search':
-                result = this.executeSearchTask($, task);
+                result = await Promise.resolve(this.executeSearchTask($, task));
                 break;
               case 'analyze':
-                result = this.executeAnalysisTask($, task);
+                result = await Promise.resolve(this.executeAnalysisTask($, task));
                 break;
               default:
                 throw new Error(`Unknown task type: ${task.type}`);
             }
 
-            return this.createSuccessResult(
-              result,
-              task.id,
-              false,
-              1,
-              performance.now() - taskStartTime
-            );
+            return this.createSuccessResult({
+              value: result,
+              selector: task.id,
+              fallbackUsed: false,
+              attemptCount: 1,
+              parseTime: performance.now() - taskStartTime,
+            });
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Task execution failed';
-            return this.createFailureResult<any>(
+            return this.createFailureResult<unknown>(
               errorMessage,
               1,
               performance.now() - taskStartTime
@@ -1667,6 +1734,77 @@ export class HtmlParser implements HtmlParserInterface {
     }
   }
 
+  /**
+   * Execute a single DOM operation
+   */
+  private executeDOMOperation(element: cheerio.Cheerio<AnyNode>, operation: DOMOperation): boolean {
+    switch (operation.type) {
+      case 'add':
+        return this.executeAddOperation(element, operation);
+      case 'remove':
+        element.remove();
+        return true;
+      case 'modify':
+        return this.executeModifyOperation(element, operation);
+      case 'replace':
+        if (operation.content) {
+          element.replaceWith(operation.content);
+          return true;
+        }
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Execute add operation
+   */
+  private executeAddOperation(element: cheerio.Cheerio<AnyNode>, operation: DOMOperation): boolean {
+    if (!operation.content) return false;
+
+    switch (operation.position) {
+      case 'before':
+        element.before(operation.content);
+        break;
+      case 'after':
+        element.after(operation.content);
+        break;
+      case 'prepend':
+        element.prepend(operation.content);
+        break;
+      case 'append':
+      default:
+        element.append(operation.content);
+        break;
+    }
+    return true;
+  }
+
+  /**
+   * Execute modify operation
+   */
+  private executeModifyOperation(
+    element: cheerio.Cheerio<AnyNode>,
+    operation: DOMOperation
+  ): boolean {
+    let modified = false;
+
+    if (operation.attributes) {
+      Object.entries(operation.attributes).forEach(([key, value]) => {
+        element.attr(key, value);
+      });
+      modified = true;
+    }
+
+    if (operation.content) {
+      element.text(operation.content);
+      modified = true;
+    }
+
+    return modified;
+  }
+
   // === 高度な解析のヘルパーメソッド ===
 
   private convertXPathToCSS(xpath: string): string | null {
@@ -1680,15 +1818,15 @@ export class HtmlParser implements HtmlParserInterface {
       '//*[@id]': '[id]',
     };
 
-    return conversions[xpath] || null;
+    return conversions[xpath] ?? null;
   }
 
-  private extractAttributesFromElement(element: cheerio.Cheerio<any>): Record<string, string> {
+  private extractAttributesFromAnyNode(element: cheerio.Cheerio<AnyNode>): Record<string, string> {
     const attributes: Record<string, string> = {};
 
     if (element.length > 0) {
       const el = element.get(0);
-      if (el && 'attribs' in el && el.attribs) {
+      if (el && 'attribs' in el) {
         Object.assign(attributes, el.attribs);
       }
     }
@@ -1697,8 +1835,8 @@ export class HtmlParser implements HtmlParserInterface {
   }
 
   private calculateMatchConfidence(
-    element: cheerio.Cheerio<any>,
-    pattern: AdvancedPattern
+    element: cheerio.Cheerio<AnyNode>,
+    _pattern: AdvancedPattern
   ): number {
     let confidence = 0.5; // ベースライン
 
@@ -1708,13 +1846,13 @@ export class HtmlParser implements HtmlParserInterface {
     const hasUniqueText = element.text().trim().length > 0;
 
     if (hasId) confidence += 0.3;
-    if (hasClass) confidence += 0.2;
-    if (hasUniqueText) confidence += 0.1;
+    if (hasClass) confidence += HtmlParser.LANGUAGE_DETECTION_RATIO_THRESHOLD;
+    if (hasUniqueText) confidence += HtmlParser.CONFIDENCE_THRESHOLD;
 
     return Math.min(1.0, confidence);
   }
 
-  private getElementPosition(element: cheerio.Cheerio<any>): { x: number; y: number } {
+  private getAnyNodePosition(element: cheerio.Cheerio<AnyNode>): { x: number; y: number } {
     // 簡易的な位置計算（実際の実装では詳細な計算を行う）
     let x = 0;
     let y = 0;
@@ -1723,7 +1861,7 @@ export class HtmlParser implements HtmlParserInterface {
     while (current.length > 0 && current.parent().length > 0) {
       const siblings = current.prevAll();
       x += siblings.length * 10; // 簡易計算
-      y += 20; // 深度に基づく簡易計算
+      y += HtmlParser.TWENTY_CONSTANT; // 深度に基づく簡易計算
       current = current.parent();
     }
 
@@ -1747,7 +1885,7 @@ export class HtmlParser implements HtmlParserInterface {
 
     const wordFreq: Record<string, number> = {};
     words.forEach(word => {
-      wordFreq[word] = (wordFreq[word] || 0) + 1;
+      wordFreq[word] = (wordFreq[word] ?? 0) + 1;
     });
 
     return Object.entries(wordFreq)
@@ -1762,7 +1900,7 @@ export class HtmlParser implements HtmlParserInterface {
     entities: string[];
   } {
     const sections = $('section, article, div[role="main"]')
-      .map((_, el) => $(el).attr('id') || $(el).attr('class') || 'unnamed')
+      .map((_, el) => $(el).attr('id') ?? $(el).attr('class') ?? 'unnamed')
       .get();
 
     const topics = $('h1, h2, h3')
@@ -1786,7 +1924,10 @@ export class HtmlParser implements HtmlParserInterface {
 
     if (sentences === 0 || words === 0) return 0;
 
-    const score = 206.835 - 1.015 * (words / sentences) - 84.6 * (syllables / words);
+    const score =
+      HtmlParser.READABILITY_CONSTANT_206 -
+      HtmlParser.READABILITY_CONSTANT_1 * (words / sentences) -
+      HtmlParser.READABILITY_CONSTANT_84 * (syllables / words);
     return Math.max(0, Math.min(100, score));
   }
 
@@ -1803,13 +1944,13 @@ export class HtmlParser implements HtmlParserInterface {
 
   private detectLanguage(text: string): string {
     // 簡易的な言語検出
-    const japaneseChars = (text.match(/[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/g) || []).length;
+    const japaneseChars = (text.match(/[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/g) ?? []).length;
     const totalChars = text.replace(/\s/g, '').length;
 
     if (totalChars === 0) return 'unknown';
 
     const japaneseRatio = japaneseChars / totalChars;
-    return japaneseRatio > 0.1 ? 'ja' : 'en';
+    return japaneseRatio > HtmlParser.CONFIDENCE_THRESHOLD ? 'ja' : 'en';
   }
 
   private extractPublishDate($: cheerio.CheerioAPI): Date | undefined {
@@ -1824,7 +1965,7 @@ export class HtmlParser implements HtmlParserInterface {
     for (const selector of dateSelectors) {
       const element = $(selector).first();
       if (element.length > 0) {
-        const dateStr = element.attr('content') || element.attr('datetime') || element.text();
+        const dateStr = element.attr('content') ?? element.attr('datetime') ?? element.text();
         if (dateStr) {
           const date = new Date(dateStr);
           if (!isNaN(date.getTime())) {
@@ -1842,35 +1983,36 @@ export class HtmlParser implements HtmlParserInterface {
     selectors: string[],
     position: number,
     isComplete: boolean
-  ): AsyncGenerator<ParseResult<any>, void, unknown> {
+  ): AsyncGenerator<ParseResult<unknown>, void, unknown> {
     try {
-      const $ = require('cheerio').load(chunk);
+      const cheerioModule = await import('cheerio');
+      const $ = cheerioModule.load(chunk);
 
       for (const selector of selectors) {
         const elements = $(selector);
         if (elements.length > 0) {
-          yield this.createSuccessResult(
-            {
+          yield this.createSuccessResult({
+            value: {
               selector,
               elements: elements
-                .map((_: number, el: any) => ({
+                .map((_: number, el: AnyNode) => ({
                   text: $(el).text(),
                   html: $(el).html(),
-                  attributes: this.extractAttributesFromElement($(el)),
+                  attributes: this.extractAttributesFromAnyNode($(el)),
                 }))
                 .get(),
               position,
               isComplete,
             },
             selector,
-            false,
-            1,
-            0
-          );
+            fallbackUsed: false,
+            attemptCount: 1,
+            parseTime: 0,
+          });
         }
       }
     } catch (error) {
-      yield this.createFailureResult<any>(
+      yield this.createFailureResult<unknown>(
         error instanceof Error ? error.message : 'Stream chunk processing failed',
         1,
         0
@@ -1878,15 +2020,15 @@ export class HtmlParser implements HtmlParserInterface {
     }
   }
 
-  private executeExtractionTask($: cheerio.CheerioAPI, task: ParsingTask): any {
-    const results: any[] = [];
+  private executeExtractionTask($: cheerio.CheerioAPI, task: ParsingTask): unknown {
+    const results: unknown[] = [];
 
     for (const selector of task.selectors) {
       $(selector).each((_, el) => {
         results.push({
           text: $(el).text(),
           html: $(el).html(),
-          attributes: this.extractAttributesFromElement($(el)),
+          attributes: this.extractAttributesFromAnyNode($(el)),
         });
       });
     }
@@ -1894,8 +2036,8 @@ export class HtmlParser implements HtmlParserInterface {
     return { taskId: task.id, results };
   }
 
-  private executeSearchTask($: cheerio.CheerioAPI, task: ParsingTask): any {
-    const matches: any[] = [];
+  private executeSearchTask($: cheerio.CheerioAPI, task: ParsingTask): unknown {
+    const matches: unknown[] = [];
 
     for (const selector of task.selectors) {
       const elements = $(selector);
@@ -1911,8 +2053,8 @@ export class HtmlParser implements HtmlParserInterface {
     return { taskId: task.id, matches };
   }
 
-  private executeAnalysisTask($: cheerio.CheerioAPI, task: ParsingTask): any {
-    const analysis: any = {
+  private executeAnalysisTask($: cheerio.CheerioAPI, task: ParsingTask): unknown {
+    const analysis: Record<string, unknown> = {
       taskId: task.id,
       selectors: task.selectors,
       results: {},
@@ -1920,7 +2062,7 @@ export class HtmlParser implements HtmlParserInterface {
 
     for (const selector of task.selectors) {
       const elements = $(selector);
-      analysis.results[selector] = {
+      (analysis.results as Record<string, unknown>)[selector] = {
         count: elements.length,
         avgTextLength:
           elements.length > 0
