@@ -5,6 +5,32 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいており、
 このプロジェクトは [セマンティック バージョニング](https://semver.org/lang/ja/) に準拠しています。
 
+## [1.0.3] - 2025-08-06
+
+### 修正
+- 🔧 **ESMインポートパス解決** - ESM互換性のためTypeScriptモジュールインポートパスを修正
+- 📦 **モジュール設定** - TypeScriptモジュールシステム設定を修正
+- 🧪 **GitHub Actions互換性** - CI/CDパイプラインでのNode.js互換性問題を解決
+- ✅ **統合テスト** - テストエラーを修正し166/167のテストが成功
+- 🔄 **依存関係レビュー** - 競合するdependency-review-action設定を削除
+
+### 変更
+- 🏗️ **アーキテクチャリファクタリング** - PatchScraperアーキテクチャの完全モジュール化
+- 📁 **ファイル整理** - 明確化のためindex.tsファイルをより説明的な名前に変更
+- 🧹 **コードクリーンアップ** - 古いドキュメントを削除しScrapersモジュールを最適化
+- ⚙️ **ESLint設定** - 設定を最適化し警告抑制コメントを削除
+- 🔒 **セキュリティアップデート** - 脆弱性を修正し未使用のhusky依存関係を削除
+
+### 追加
+- 💾 **キャッシュ機能** - 既存パッチのキャッシュメカニズムを実装
+- 🛠️ **プロセス管理** - プロセス終了スクリプト機能を強化
+
+### 技術的改善
+- **モジュールシステム** - ESM互換インポートシステムに移行
+- **テストアーキテクチャ** - 大規模リファクタリング後のテストクリーンアップ
+- **コード品質** - すべてのESLint警告抑制コメントを削除
+- **CI/CDパイプライン** - GitHub Actionsワークフローを合理化
+
 ## [1.0.2] - 2025-08-01
 
 ### 修正
@@ -74,6 +100,7 @@
 - 環境変数バリデーション
 - セーフ設定処理
 
+[1.0.3]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.3
 [1.0.2]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.2
 [1.0.1]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.1
 [1.0.0]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.0

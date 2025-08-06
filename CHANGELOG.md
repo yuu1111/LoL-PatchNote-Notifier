@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-08-06
+
+### Fixed
+- 🔧 **ESM Import Path Resolution** - Fixed TypeScript module import paths for ESM compatibility
+- 📦 **Module Configuration** - Corrected TypeScript module system configuration
+- 🧪 **GitHub Actions Compatibility** - Resolved Node.js compatibility issues in CI/CD pipeline
+- ✅ **Integration Tests** - Fixed test errors achieving 166/167 passing tests
+- 🔄 **Dependency Review** - Removed conflicting dependency-review-action configuration
+
+### Changed
+- 🏗️ **Architecture Refactoring** - Complete modularization of PatchScraper architecture
+- 📁 **File Organization** - Renamed index.ts files to more descriptive names for clarity
+- 🧹 **Code Cleanup** - Removed deprecated documentation and optimized Scrapers module
+- ⚙️ **ESLint Configuration** - Optimized configuration and removed warning suppression comments
+- 🔒 **Security Updates** - Fixed vulnerabilities and removed unused husky dependency
+
+### Added
+- 💾 **Cache Feature** - Implemented caching mechanism for existing patches
+- 🛠️ **Process Management** - Enhanced process termination script functionality
+
+### Technical Improvements
+- **Module System** - Migrated to ESM-compatible import system
+- **Test Architecture** - Cleaned up tests after major refactoring
+- **Code Quality** - Removed all ESLint warning suppression comments
+- **CI/CD Pipeline** - Streamlined GitHub Actions workflow
+
 ## [1.0.2] - 2025-08-01
 
 ### Fixed
@@ -74,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Environment variable validation
 - Safe configuration handling
 
+[1.0.3]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.3
 [1.0.2]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.2
 [1.0.1]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.1
 [1.0.0]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.0
