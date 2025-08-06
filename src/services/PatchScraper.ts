@@ -1,89 +1,268 @@
 /**
  * PatchScraper service
- * Handles scraping patch notes from the official LoL website
+ * パッチノートのスクレイピングを統括するメインサービス
+ *
+ * 責任範囲:
+ * - パッチ情報取得フローの調整
+ * - 外部APIとの通信管理
+ * - 取得データの統合
  */
 
+// External dependencies
 import * as cheerio from 'cheerio';
+import type { AnyNode, Element } from 'domhandler';
+
+// Internal utilities
 import { httpClient } from '../utils/httpClient';
 import { Logger } from '../utils/logger';
-import { config } from '../config';
-import { PatchNote, ScrapingError } from '../types';
+import { config } from '../config/config';
+
+// Type definitions
+import { type PatchNote, ScrapingError } from '../types/types';
+import {
+  type DetailedPatchInfo,
+  type ExtractedPatchData,
+  type PatchScraperConfig,
+  type SelectorSet,
+} from './types/PatchScraperTypes';
+
+// Service dependencies (injected)
+import { HtmlParser } from './scrapers/HtmlParser';
+import { ImageValidator } from './scrapers/ImageValidator';
+import { ScraperDebugger } from './scrapers/ScraperDebugger';
+
+// Re-export types for external use
+export type { PatchScraperConfig } from './types/PatchScraperTypes';
 
 /**
- * Fallback selectors for robust HTML parsing
+ * パッチノートスクレイピングのメインサービス
+ * 各種スクレイピングサービスを統合し、パッチ情報を取得する
  */
-interface SelectorSet {
-  container: string[];
-  title: string[];
-  url: string[];
-  image: string[];
-}
-
 export class PatchScraper {
-  private readonly selectors: SelectorSet = {
-    container: [
-      '.sc-4d29e6fd-0 .action',
-      '.sc-9565c853-0.action',
-      '.sc-4d29e6fd-0 > a',
-      '[data-testid="patch-note-card"]',
-      'article',
-    ],
-    title: [
-      '.sc-6fae0810-0',
-      'span div',
-      '.sc-d4b4173b-0',
-      '[data-testid="patch-note-title"]',
-      'h1',
-      'h2',
-      'h3',
-    ],
-    url: [
-      '', // Use the element itself if it's an <a> tag
-      'a[href*="patch"]',
-      'a[href*="news"]',
-      '[data-testid="patch-note-link"]',
-      'a',
-    ],
-    image: ['.sc-d237f54f-0 img', 'img[src*="patch"]', '[data-testid="patch-note-image"]', 'img'],
-  };
+  private readonly htmlParser: HtmlParser;
+  private readonly imageValidator: ImageValidator;
+  private scraperDebugger: ScraperDebugger | null;
+  private selectors: SelectorSet;
+  private isDebugMode: boolean;
+  private detailPageTimeout: number;
+
+  constructor(
+    htmlParser?: HtmlParser,
+    imageValidator?: ImageValidator,
+    scraperDebugger?: ScraperDebugger | null,
+    config?: PatchScraperConfig
+  ) {
+    // 依存性注入またはデフォルトインスタンス作成
+    this.htmlParser = htmlParser ?? new HtmlParser();
+    this.imageValidator = imageValidator ?? new ImageValidator();
+
+    // プロパティの初期化
+    this.isDebugMode = false;
+    this.scraperDebugger = null;
+    this.detailPageTimeout = 30000;
+    this.selectors = this.getDefaultSelectors();
+
+    // 設定の初期化
+    this.initializeConfiguration(scraperDebugger, config);
+  }
 
   /**
-   * Scrape detailed patch content from individual patch page
+   * 設定の初期化（複雑度を下げるため分離）
    */
-  public async scrapeDetailedPatch(
-    patchUrl: string
-  ): Promise<{ content?: string; imageUrl?: string }> {
-    try {
-      Logger.info(`個別ページから詳細情報を取得中: ${patchUrl}`);
+  private initializeConfiguration(
+    scraperDebugger?: ScraperDebugger | null,
+    config?: PatchScraperConfig
+  ): void {
+    // デバッグモードの判定
+    this.isDebugMode = config?.debugMode ?? process.env.SCRAPER_DEBUG === 'true';
+    this.scraperDebugger = scraperDebugger ?? (this.isDebugMode ? new ScraperDebugger() : null);
 
-      const response = await httpClient.get<string>(patchUrl);
+    // タイムアウト設定
+    this.detailPageTimeout = config?.detailPageTimeout ?? 30000;
+
+    // セレクタセット（デフォルトまたはカスタム）
+    this.selectors = config?.selectors ?? this.getDefaultSelectors();
+  }
+
+  /**
+   * デフォルトのセレクタセットを取得
+   */
+  private getDefaultSelectors(): SelectorSet {
+    return {
+      container: [
+        '.sc-4d29e6fd-0 .action',
+        '.sc-9565c853-0.action',
+        '.sc-4d29e6fd-0 > a',
+        '[data-testid="patch-note-card"]',
+        'article',
+      ],
+      title: [
+        '.sc-6fae0810-0',
+        'span div',
+        '.sc-d4b4173b-0',
+        '[data-testid="patch-note-title"]',
+        'h1',
+        'h2',
+        'h3',
+      ],
+      url: [
+        '', // Use the element itself if it's an <a> tag
+        'a[href*="patch"]',
+        'a[href*="news"]',
+        '[data-testid="patch-note-link"]',
+        'a',
+      ],
+      image: ['.sc-d237f54f-0 img', 'img[src*="patch"]', '[data-testid="patch-note-image"]', 'img'],
+    };
+  }
+
+  /**
+   * 最新のパッチノートをスクレイピング
+   */
+  public async scrapeLatestPatch(): Promise<PatchNote | null> {
+    let debugSessionId: string | undefined;
+
+    try {
+      Logger.info(`パッチノートスクレイピング開始: ${config.lol.patchNotesUrl}`);
+
+      // デバッグセッション開始
+      if (this.scraperDebugger) {
+        debugSessionId = this.scraperDebugger.startSession('scrapeLatestPatch');
+      }
+
+      // メインページのHTML取得
+      const response = await httpClient.get<string>(config.lol.patchNotesUrl);
       const $ = cheerio.load(response.data);
 
-      // パッチノートの本文を抽出
-      const content = this.extractPatchContent($);
+      // デバッグ: ページ構造のログ
+      if (this.scraperDebugger) {
+        this.scraperDebugger.logPageStructure($);
+      }
 
-      // 高解像度の画像URLを取得
-      const detailImageUrl = this.extractDetailedImageUrl($);
+      // パッチ要素の検索
+      const patchElementResult = this.htmlParser.findElement($, this.selectors.container);
+      if (!patchElementResult.element) {
+        this.handleContainerNotFound();
+      }
+
+      const patchElement = patchElementResult.element;
+
+      // デバッグ: パッチ要素のログ
+      if (this.scraperDebugger) {
+        this.scraperDebugger.logPatchElement($, patchElement as cheerio.Cheerio<Element>);
+      }
+
+      // パッチデータの抽出
+      const patchData = this.extractPatchData($, patchElement);
+
+      // 基本パッチノートオブジェクトの構築（詳細情報なし）
+      const patchNote = this.buildBasicPatchNote(patchData);
+
+      // 成功ログ
+      this.logBasicScrapingSuccess(patchNote);
+
+      // デバッグセッション終了
+      if (this.scraperDebugger && debugSessionId) {
+        this.scraperDebugger.endSession(debugSessionId);
+      }
+
+      return patchNote;
+    } catch (error) {
+      this.handleScrapingError(error, debugSessionId);
+      throw error;
+    }
+  }
+
+  /**
+   * パッチデータを抽出
+   */
+  private extractPatchData(
+    $: cheerio.CheerioAPI,
+    patchElement: cheerio.Cheerio<AnyNode>
+  ): ExtractedPatchData {
+    // タイトル抽出
+    const titleResult = this.htmlParser.extractTitle($, patchElement, this.selectors.title);
+    if (!titleResult.success || !titleResult.value) {
+      throw new ScrapingError('パッチノートのタイトルを抽出できませんでした');
+    }
+
+    // URL抽出
+    const urlResult = this.htmlParser.extractUrl($, patchElement, this.selectors.url);
+    if (!urlResult.success || !urlResult.value) {
+      throw new ScrapingError('パッチノートのURLを抽出できませんでした');
+    }
+
+    // 画像URL抽出（オプショナル）
+    const imageUrlResult = this.htmlParser.extractImageUrl($, patchElement, this.selectors.image);
+    const imageUrl = imageUrlResult.success ? (imageUrlResult.value ?? null) : null;
+
+    // バージョン番号抽出
+    const version = this.htmlParser.extractVersion(titleResult.value);
+
+    // URL正規化
+    const normalizedUrl = this.htmlParser.normalizeUrl(urlResult.value);
+
+    return {
+      title: titleResult.value,
+      url: urlResult.value,
+      normalizedUrl,
+      imageUrl,
+      version,
+    };
+  }
+
+  /**
+   * 基本パッチノートオブジェクトを構築（詳細情報なし）
+   */
+  private buildBasicPatchNote(patchData: ExtractedPatchData): PatchNote {
+    return {
+      version: patchData.version,
+      title: patchData.title,
+      url: patchData.normalizedUrl,
+      publishedAt: new Date(),
+      // 基本情報のみ、詳細情報は後で追加
+      ...(patchData.imageUrl && { imageUrl: patchData.imageUrl }),
+    };
+  }
+
+  /**
+   * 詳細ページから追加情報を取得
+   */
+  private async fetchDetailedPatchInfo(patchUrl: string): Promise<DetailedPatchInfo> {
+    try {
+      Logger.info(`詳細ページから情報取得中: ${patchUrl}`);
+
+      const response = await httpClient.get<string>(patchUrl, {
+        timeout: this.detailPageTimeout,
+      });
+      const $ = cheerio.load(response.data);
+
+      // コンテンツと画像を並行して抽出
+      const content = this.extractDetailedContent($);
+      const imageUrl = this.extractDetailedImageUrl($);
+
+      const result: DetailedPatchInfo = {};
+      if (content) result.content = content;
+      if (imageUrl) result.imageUrl = imageUrl;
 
       Logger.info(
-        `詳細情報取得完了: コンテンツ=${content ? `${content.length}文字` : 'なし'}, 画像=${detailImageUrl ?? 'なし'}`
+        `詳細情報取得完了: ` +
+          `コンテンツ=${content ? `${content.length}文字` : 'なし'}, ` +
+          `画像=${imageUrl ?? 'なし'}`
       );
 
-      return {
-        ...(content && { content }),
-        ...(detailImageUrl && { imageUrl: detailImageUrl }),
-      };
+      return result;
     } catch (error) {
-      Logger.error(`個別ページの詳細情報取得に失敗: ${patchUrl}`, error);
+      Logger.error(`詳細ページの取得に失敗: ${patchUrl}`, error);
       return {};
     }
   }
 
   /**
-   * Extract patch content from detail page
+   * 詳細ページからコンテンツを抽出
    */
-  private extractPatchContent($: cheerio.CheerioAPI): string | null {
-    // パッチノートの本文を取得するためのセレクター
+  private extractDetailedContent($: cheerio.CheerioAPI): string | null {
+    // コンテンツ抽出用のセレクタ
     const contentSelectors = [
       'main',
       'article',
@@ -105,75 +284,49 @@ export class PatchScraper {
         // 不要な改行や空白を整理
         content = content.replace(/\s+/g, ' ').replace(/\n+/g, '\n');
 
+        // 十分な長さのコンテンツのみ採用（100文字以上）
         if (content && content.length > 100) {
-          // 十分な長さのコンテンツのみ採用
-          Logger.debug(`パッチ本文を取得 (セレクター: ${selector}): ${content.length}文字`);
+          Logger.debug(`コンテンツ抽出成功 (${selector}): ${content.length}文字`);
           return content;
         }
       }
     }
 
-    Logger.debug('パッチ本文が見つかりませんでした');
+    Logger.debug('詳細コンテンツが見つかりませんでした');
     return null;
   }
 
   /**
-   * Extract high-resolution image from detail page
+   * 詳細ページから高解像度画像URLを抽出
    */
   private extractDetailedImageUrl($: cheerio.CheerioAPI): string | null {
-    // 1920x1080の高解像度画像を優先的に探す
-    const allImages = $('img');
-
-    Logger.debug(`詳細ページで${allImages.length}個の画像を発見`);
-
-    // 最初に1920x1080の画像を探す
-    for (let i = 0; i < allImages.length; i++) {
-      const img = allImages.eq(i);
-      const src = img.attr('src') ?? img.attr('data-src');
-
-      if (src && this.isValidImageUrl(src)) {
-        // 1920x1080の画像を優先
-        if (src.includes('1920x1080')) {
-          Logger.debug(`1920x1080画像を発見: ${src}`);
-          return src;
-        }
-      }
-    }
-
-    // 次に高解像度画像を探す（1600x945など）
-    for (let i = 0; i < allImages.length; i++) {
-      const img = allImages.eq(i);
-      const src = img.attr('src') ?? img.attr('data-src');
-
-      if (src && this.isValidImageUrl(src)) {
-        // Sanity CDNの高解像度画像
-        if (
-          src.includes('cmsassets.rgpub.io') &&
-          (src.includes('1600x') || src.includes('1920x'))
-        ) {
-          Logger.debug(`高解像度画像を発見: ${src}`);
-          return src;
-        }
-      }
-    }
-
-    // フォールバック: 従来のセレクター
-    const detailImageSelectors = [
-      '.hero-image img',
-      '.patch-hero img',
-      '.banner-image img',
-      '[data-testid="patch-hero-image"]',
-      'article img[src*="patch"]',
-      'main img[src*="splash"]',
-      '.content img[src*="banner"]',
+    // 高解像度画像検索パターン
+    const imagePatterns = [
+      { selector: 'img[src*="1920x1080"]', priority: 100 },
+      { selector: 'img[src*="1600x"]', priority: 90 },
+      { selector: 'img[src*="1920x"]', priority: 90 },
+      { selector: '.hero-image img', priority: 80 },
+      { selector: '.patch-hero img', priority: 80 },
+      { selector: '.banner-image img', priority: 80 },
+      { selector: '[data-testid="patch-hero-image"]', priority: 70 },
+      { selector: 'article img[src*="patch"]', priority: 60 },
+      { selector: 'main img[src*="splash"]', priority: 60 },
+      { selector: '.content img[src*="banner"]', priority: 50 },
     ];
 
-    for (const selector of detailImageSelectors) {
-      const imgElement = $(selector).first();
-      if (imgElement.length > 0) {
-        const src = imgElement.attr('src') ?? imgElement.attr('data-src');
-        if (src && this.isValidImageUrl(src)) {
-          Logger.debug(`詳細ページから画像URL取得 (セレクター: ${selector}): ${src}`);
+    // 優先度順にソート
+    imagePatterns.sort((a, b) => b.priority - a.priority);
+
+    // 画像を検索
+    for (const pattern of imagePatterns) {
+      const imgElements = $(pattern.selector);
+
+      for (let i = 0; i < imgElements.length; i++) {
+        const img = imgElements.eq(i);
+        const src = img.attr('src') ?? img.attr('data-src');
+
+        if (src && this.imageValidator.isValidImageUrl(src)) {
+          Logger.debug(`高解像度画像発見 (${pattern.selector}): ${src}`);
           return src;
         }
       }
@@ -184,352 +337,99 @@ export class PatchScraper {
   }
 
   /**
-   * Scrape the latest patch notes from the official website
-   */ public async scrapeLatestPatch(): Promise<PatchNote | null> {
-    try {
-      Logger.info(`Starting patch notes scraping from: ${config.lol.patchNotesUrl}`);
+   * パッチノートオブジェクトを構築
+   */
+  private buildPatchNote(
+    patchData: ExtractedPatchData,
+    detailedInfo: DetailedPatchInfo
+  ): PatchNote {
+    // 画像URLの優先度: 詳細ページ > リストページ
+    const finalImageUrl = detailedInfo.imageUrl ?? patchData.imageUrl;
 
-      const response = await httpClient.get<string>(config.lol.patchNotesUrl);
-      const $ = cheerio.load(response.data);
+    return {
+      version: patchData.version,
+      title: patchData.title,
+      url: patchData.normalizedUrl,
+      publishedAt: new Date(),
+      ...(detailedInfo.content && { content: detailedInfo.content }),
+      ...(finalImageUrl && { imageUrl: this.htmlParser.normalizeUrl(finalImageUrl) }),
+    };
+  }
 
-      // Debug: Log available elements
-      Logger.debug(`Total elements found: ${$('*').length}`);
-      Logger.debug(
-        `Available classes: ${[
-          ...$('[class]')
-            .map((_, el) => $(el).attr('class'))
-            .get(),
-        ]
-          .slice(0, 20)
-          .join(', ')}`
-      );
+  /**
+   * コンテナが見つからない場合のエラーハンドリング
+   */
+  private handleContainerNotFound(): never {
+    if (this.isDebugMode) {
+      Logger.debug('試行したコンテナセレクタ:', this.selectors.container);
+    }
+    throw new ScrapingError('パッチノートコンテナが見つかりませんでした');
+  }
 
-      // Debug: Look for grid containers that might contain articles
-      const gridContainers = $('.sc-4d29e6fd-0');
-      Logger.debug(`Grid containers found: ${gridContainers.length}`);
-      gridContainers.each((i, el) => {
-        const $el = $(el);
-        Logger.debug(
-          `Grid ${i}: classes="${$el.attr('class')}", children=${$el.children().length}`
-        );
-        $el.children().each((j, child) => {
-          const $child = $(child);
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-          const tagName = (child as any).tagName ?? 'unknown';
-          Logger.debug(`  Child ${j}: tag=${tagName}, classes="${$child.attr('class')}"`);
-        });
-      });
+  /**
+   * スクレイピングエラーのハンドリング
+   */
+  private handleScrapingError(error: unknown, debugSessionId?: string): void {
+    const message = 'パッチノートのスクレイピングに失敗しました';
+    Logger.error(message, error);
 
-      // Try to find the latest patch note using fallback selectors
-      const patchElement = this.findElement($, this.selectors.container);
-      if (!patchElement) {
-        Logger.debug('Container selectors tried:', this.selectors.container);
-        throw new ScrapingError('Could not find patch note container');
+    // デバッグセッションの終了
+    if (this.scraperDebugger && debugSessionId) {
+      try {
+        const metrics = this.scraperDebugger.getSessionMetrics(debugSessionId);
+        if (metrics) {
+          Logger.error('デバッグセッションメトリクス:', metrics);
+        }
+        this.scraperDebugger.endSession(debugSessionId);
+      } catch (debugError) {
+        Logger.error('デバッグセッション終了エラー:', debugError);
       }
+    }
 
-      Logger.debug(
-        `Found patch element with tag: ${patchElement.length > 0 ? (patchElement.prop('tagName') ?? 'unknown') : 'none'}`
-      );
-      Logger.debug(`Patch element classes: ${patchElement.attr('class')}`);
-      Logger.debug(`Patch element children: ${patchElement.children().length}`);
-      Logger.debug(`Patch element href: ${patchElement.attr('href')}`);
-      Logger.debug(`Patch element text: ${patchElement.text().substring(0, 200)}...`);
-
-      // Debug: Show children structure
-      patchElement.children().each((i, child) => {
-        const $child = $(child);
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-        const tagName = (child as any).tagName ?? 'unknown';
-        Logger.debug(
-          `  Child ${i}: tag=${tagName}, classes="${$child.attr('class')}", text="${$child.text().substring(0, 100)}..."`
-        );
-        $child.children().each((j, grandchild) => {
-          const $grandchild = $(grandchild);
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-          const grandchildTagName = (grandchild as any).tagName ?? 'unknown';
-          Logger.debug(
-            `    Grandchild ${j}: tag=${grandchildTagName}, classes="${$grandchild.attr('class')}", text="${$grandchild.text().substring(0, 50)}..."`
-          );
-        });
-      });
-
-      const title = this.extractTitle($, patchElement);
-      if (!title) {
-        throw new ScrapingError('Could not extract patch note title');
-      }
-
-      const url = this.extractUrl($, patchElement);
-      if (!url) {
-        throw new ScrapingError('Could not extract patch note URL');
-      }
-
-      const imageUrl = this.extractImageUrl($, patchElement);
-      Logger.debug(`Image URL extracted: ${imageUrl ?? 'None found'}`);
-      const version = this.extractVersion(title);
-
-      const normalizedUrl = this.normalizeUrl(url);
-
-      // 個別ページから詳細情報を取得
-      Logger.info(`個別ページから詳細情報を取得します: ${normalizedUrl}`);
-      const detailedInfo = await this.scrapeDetailedPatch(normalizedUrl);
-
-      const patchNote: PatchNote = {
-        version,
-        title,
-        url: normalizedUrl,
-        publishedAt: new Date(),
-        ...(detailedInfo.content && { content: detailedInfo.content }),
-        ...(detailedInfo.imageUrl && { imageUrl: this.normalizeUrl(detailedInfo.imageUrl) }),
-        // 個別ページで画像が見つからない場合は、リストページから取得した画像を使用
-        ...(!detailedInfo.imageUrl && imageUrl && { imageUrl: this.normalizeUrl(imageUrl) }),
-      };
-
-      Logger.info(
-        `Successfully scraped patch note: ${title}${detailedInfo.content ? ` (本文: ${detailedInfo.content.length}文字)` : ''}${patchNote.imageUrl ? ' (画像あり)' : ''}`
-      );
-      return patchNote;
-    } catch (error) {
-      const message = 'Failed to scrape patch notes';
-      Logger.error(message, error);
-
-      if (error instanceof ScrapingError) {
-        throw error;
-      }
-
+    // 元のエラーを再スロー
+    if (!(error instanceof ScrapingError)) {
       throw new ScrapingError(message);
     }
-  } /**
-   * Find element using fallback selectors
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private findElement($: cheerio.CheerioAPI, selectors: string[]): cheerio.Cheerio<any> | null {
-    for (const selector of selectors) {
-      try {
-        const elements = $(selector);
-        if (elements.length > 0) {
-          Logger.debug(`Found element with selector: ${selector}`);
-          return elements.first();
-        }
-      } catch (error) {
-        Logger.debug(`Selector failed: ${selector}`, error);
-        continue;
-      }
-    }
-    return null;
   }
 
   /**
-   * Extract patch note title
+   * 基本スクレイピング成功時のログ出力（詳細情報なし）
    */
-  private extractTitle(
-    $: cheerio.CheerioAPI,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    container: cheerio.Cheerio<any>
-  ): string | null {
-    // First try within the container
-    for (const selector of this.selectors.title) {
-      const titleElement = container.find(selector).first();
-      if (titleElement.length > 0) {
-        const fullText = titleElement.text().trim();
-        if (fullText) {
-          // Extract patch note title from the text
-          const patchTitle = this.extractPatchTitle(fullText);
-          if (patchTitle) {
-            return patchTitle;
-          }
-        }
-      }
-    }
+  private logBasicScrapingSuccess(patchNote: PatchNote): void {
+    const details = [patchNote.title, patchNote.imageUrl ? '(画像あり)' : '']
+      .filter(Boolean)
+      .join(' ');
 
-    // Fallback: use container text and extract patch title
-    const containerText = container.text().trim();
-    if (containerText) {
-      const patchTitle = this.extractPatchTitle(containerText);
-      if (patchTitle) {
-        return patchTitle;
-      }
-    }
-
-    return null;
+    Logger.info(`基本パッチノート取得成功: ${details}`);
   }
 
   /**
-   * Extract patch title from full text
+   * 成功時のログ出力（詳細情報あり）
    */
-  private extractPatchTitle(text: string): string | null {
-    // Look for "パッチノート X.X" or "Patch X.X" patterns
-    const patchPatterns = [
-      /パッチノート\s*(\d+\.\d+)/i,
-      /パッチ\s*(\d+\.\d+)/i,
-      /patch\s*(\d+\.\d+)/i,
-      /パッチノート\s*(\d+)/i,
-    ];
+  private logSuccessfulScraping(patchNote: PatchNote): void {
+    const details = [
+      patchNote.title,
+      patchNote.content ? `(本文: ${patchNote.content.length}文字)` : '',
+      patchNote.imageUrl ? '(画像あり)' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
-    for (const pattern of patchPatterns) {
-      const match = text.match(pattern);
-      if (match) {
-        return `パッチノート ${match[1]}`;
-      }
-    }
-
-    return null;
-  } /**
-   * Extract patch note URL
-   */
-  private extractUrl(
-    $: cheerio.CheerioAPI,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    container: cheerio.Cheerio<any>
-  ): string | null {
-    // Check if container itself is an <a> tag
-    if (container.is('a')) {
-      const href = container.attr('href');
-      if (href) {
-        return href;
-      }
-    }
-
-    // First try within the container
-    for (const selector of this.selectors.url) {
-      if (!selector) {
-        continue;
-      } // Skip empty selector
-      const linkElement = container.find(selector).first();
-      if (linkElement.length > 0) {
-        const href = linkElement.attr('href');
-        if (href) {
-          return href;
-        }
-      }
-    }
-
-    // Fallback to document-wide search
-    for (const selector of this.selectors.url) {
-      if (!selector) {
-        continue;
-      } // Skip empty selector
-      const linkElement = $(selector).first();
-      if (linkElement.length > 0) {
-        const href = linkElement.attr('href');
-        if (href?.includes('patch')) {
-          return href;
-        }
-      }
-    }
-
-    return null;
+    Logger.info(`パッチノート取得成功: ${details}`);
   }
 
   /**
-   * Extract patch note image URL
+   * 詳細ページ情報を取得（後方互換性のため）
+   * @deprecated scrapeDetailedPatchを使用してください
    */
-  private extractImageUrl(
-    $: cheerio.CheerioAPI,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    container: cheerio.Cheerio<any>
-  ): string | null {
-    Logger.debug('Searching for images in container...');
-
-    // First try within the container
-    for (const selector of this.selectors.image) {
-      Logger.debug(`Trying image selector: ${selector}`);
-      const imgElement = container.find(selector).first();
-      if (imgElement.length > 0) {
-        const src = imgElement.attr('src') ?? imgElement.attr('data-src');
-        Logger.debug(`Found image element with src: ${src}`);
-        if (src && this.isValidImageUrl(src)) {
-          Logger.debug(`Valid image URL found: ${src}`);
-          return src;
-        } else if (src) {
-          Logger.debug(`Invalid or filtered image URL: ${src}`);
-        }
-      }
-    }
-
-    // Debug: Show all images in container
-    const allImages = container.find('img');
-    Logger.debug(`Total images in container: ${allImages.length}`);
-    allImages.each((i, img) => {
-      const $img = $(img);
-      const src = $img.attr('src') ?? $img.attr('data-src');
-      Logger.debug(`  Image ${i}: src="${src}", classes="${$img.attr('class')}"`);
-    });
-
-    // Fallback to document-wide search
-    Logger.debug('Falling back to document-wide image search...');
-    for (const selector of this.selectors.image) {
-      const imgElement = $(selector).first();
-      if (imgElement.length > 0) {
-        const src = imgElement.attr('src') ?? imgElement.attr('data-src');
-        if (src && this.isValidImageUrl(src) && (src.includes('patch') || src.includes('news'))) {
-          Logger.debug(`Valid fallback image URL found: ${src}`);
-          return src;
-        }
-      }
-    }
-
-    Logger.debug('No valid image URL found');
-    return null;
+  public scrapePatchDetails(patchUrl: string): Promise<DetailedPatchInfo> {
+    return this.scrapeDetailedPatch(patchUrl);
   }
 
   /**
-   * Check if URL is a valid image URL
+   * 詳細ページから情報を取得（後方互換性のため）
    */
-  private isValidImageUrl(url: string): boolean {
-    // Skip data URLs with invalid content
-    if (url.startsWith('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>')) {
-      return false;
-    }
-
-    // Skip very short or empty data URLs
-    if (url.startsWith('data:') && url.length < 100) {
-      return false;
-    }
-
-    // Allow valid HTTP/HTTPS URLs
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return true;
-    }
-
-    // Allow valid data URLs with substantial content
-    if (url.startsWith('data:image/') && url.length > 100) {
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Extract version number from title
-   */
-  private extractVersion(title: string): string {
-    // Match patterns like "パッチ 14.1", "Patch 14.1", "14.1", etc.
-    const versionMatch = title.match(/(\d+\.\d+(?:\.\d+)?)/);
-    if (versionMatch?.[1]) {
-      return versionMatch[1];
-    }
-
-    // Fallback: use timestamp-based version
-    const now = new Date();
-    return `${now.getFullYear()}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getDate().toString().padStart(2, '0')}`;
-  }
-
-  /**
-   * Normalize URL (make absolute if relative)
-   */
-  private normalizeUrl(url: string): string {
-    if (url.startsWith('http')) {
-      return url;
-    }
-
-    if (url.startsWith('//')) {
-      return `https:${url}`;
-    }
-
-    if (url.startsWith('/')) {
-      return `https://www.leagueoflegends.com${url}`;
-    }
-
-    return url;
+  public scrapeDetailedPatch(patchUrl: string): Promise<DetailedPatchInfo> {
+    return this.fetchDetailedPatchInfo(patchUrl);
   }
 }

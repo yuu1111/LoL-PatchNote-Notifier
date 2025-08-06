@@ -6,13 +6,20 @@
 import path from 'path';
 import { FileStorage } from '../utils/fileStorage';
 import { Logger } from '../utils/logger';
-import { config } from '../config';
-import { PatchNote, AppState, AppError } from '../types';
+import { config } from '../config/config';
+import { AppError, type AppState, type PatchNote } from '../types/types';
 
 export class StateManager {
   private readonly stateFilePath: string;
   private readonly patchesDir: string;
   private currentState: AppState | null = null;
+
+  // Time constants
+  private static readonly DAYS_IN_3_MONTHS = 90;
+  private static readonly HOURS_IN_DAY = 24;
+  private static readonly MINUTES_IN_HOUR = 60;
+  private static readonly SECONDS_IN_MINUTE = 60;
+  private static readonly MS_IN_SECOND = 1000;
 
   constructor() {
     this.patchesDir = config.storage.patchesDir;
@@ -182,28 +189,8 @@ export class StateManager {
       const patchData = await FileStorage.readJson<Record<string, unknown>>(jsonFilePath);
 
       if (patchData && this.isPatchNoteData(patchData)) {
-        // 日付文字列を Date オブジェクトに変換
-        if (typeof patchData.publishedAt === 'string') {
-          patchData.publishedAt = new Date(patchData.publishedAt);
-        }
-
         Logger.debug(`パッチ詳細を読み込み: ${jsonFilePath}`);
-        const result: PatchNote = {
-          version: patchData.version,
-          title: patchData.title,
-          url: patchData.url,
-          publishedAt: patchData.publishedAt,
-        };
-
-        if (patchData.content && typeof patchData.content === 'string') {
-          result.content = patchData.content;
-        }
-
-        if (patchData.imageUrl && typeof patchData.imageUrl === 'string') {
-          result.imageUrl = patchData.imageUrl;
-        }
-
-        return result;
+        return this.convertToPatchNote(patchData);
       }
 
       return null;
@@ -214,11 +201,72 @@ export class StateManager {
   }
 
   /**
+   * 読み込んだデータをPatchNote型に変換
+   */
+  private convertToPatchNote(
+    patchData: Record<string, unknown> & {
+      version: string;
+      title: string;
+      url: string;
+      publishedAt: string | Date;
+    }
+  ): PatchNote {
+    // 日付文字列を Date オブジェクトに変換
+    if (typeof patchData.publishedAt === 'string') {
+      patchData.publishedAt = new Date(patchData.publishedAt);
+    }
+
+    const result: PatchNote = {
+      version: patchData.version,
+      title: patchData.title,
+      url: patchData.url,
+      publishedAt: patchData.publishedAt,
+    };
+
+    if (patchData.content && typeof patchData.content === 'string') {
+      result.content = patchData.content;
+    }
+
+    if (patchData.imageUrl && typeof patchData.imageUrl === 'string') {
+      result.imageUrl = patchData.imageUrl;
+    }
+
+    if (patchData.localImagePath && typeof patchData.localImagePath === 'string') {
+      result.localImagePath = patchData.localImagePath;
+    }
+
+    return result;
+  }
+
+  /**
    * パッチバージョンのディレクトリパスを取得
    */
   public getPatchDirectory(version: string): string {
     const sanitizedVersion = version.replace(/[^a-zA-Z0-9.-]/g, '_');
     return path.join(this.patchesDir, `patch_${sanitizedVersion}`);
+  }
+
+  /**
+   * パッチの詳細データが既に保存されているかチェック
+   */
+  public async hasPatchDetails(version: string): Promise<boolean> {
+    try {
+      const sanitizedVersion = version.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const patchDir = path.join(this.patchesDir, `patch_${sanitizedVersion}`);
+      const jsonFilePath = path.join(patchDir, `patch_${sanitizedVersion}.json`);
+
+      const exists = await FileStorage.exists(jsonFilePath);
+      if (exists) {
+        // ファイルが存在する場合、contentが含まれているか確認
+        const patchData = await this.loadPatchDetails(version);
+        return patchData?.content !== undefined;
+      }
+
+      return false;
+    } catch (error) {
+      Logger.debug(`パッチ詳細の存在確認エラー: ${version}`, error);
+      return false;
+    }
   } /**
    * 現在の状態を取得（メモリキャッシュから）
    */
@@ -275,7 +323,13 @@ export class StateManager {
   /**
    * 古いパッチデータのクリーンアップ
    */
-  public cleanupOldPatchData(maxAge: number = 90 * 24 * 60 * 60 * 1000): void {
+  public cleanupOldPatchData(
+    maxAge: number = StateManager.DAYS_IN_3_MONTHS *
+      StateManager.HOURS_IN_DAY *
+      StateManager.MINUTES_IN_HOUR *
+      StateManager.SECONDS_IN_MINUTE *
+      StateManager.MS_IN_SECOND
+  ): void {
     try {
       Logger.info('古いパッチデータのクリーンアップを開始');
       // 実装は将来のバージョンで追加

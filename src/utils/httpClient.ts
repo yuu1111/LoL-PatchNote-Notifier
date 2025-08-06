@@ -3,10 +3,10 @@
  * Axios-based HTTP client with retry logic and rate limiting
  */
 
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { config } from '../config';
+import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios';
+import { config } from '../config/config';
 import { Logger } from './logger';
-import { NetworkError, HttpResponse } from '../types';
+import { type HttpResponse, NetworkError } from '../types/types';
 
 /**
  * Rate limiter for HTTP requests
@@ -37,6 +37,9 @@ export class HttpClient {
   private readonly axiosInstance: AxiosInstance;
   private readonly rateLimiter = new RateLimiter();
 
+  // HTTP Status codes
+  private static readonly HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+
   constructor() {
     this.axiosInstance = axios.create({
       timeout: config.http.timeout,
@@ -55,17 +58,14 @@ export class HttpClient {
   /**
    * Make HTTP GET request with retry logic
    */
-  public async get<T = string>(
-    url: string,
-    options?: AxiosRequestConfig
-  ): Promise<HttpResponse<T>> {
+  public get<T = string>(url: string, options?: AxiosRequestConfig): Promise<HttpResponse<T>> {
     return this.makeRequest<T>('GET', url, options);
   }
 
   /**
    * Make HTTP POST request with retry logic
    */
-  public async post<T = unknown>(
+  public post<T = unknown>(
     url: string,
     data?: unknown,
     options?: AxiosRequestConfig
@@ -81,7 +81,10 @@ export class HttpClient {
   ): Promise<HttpResponse<T>> {
     // Check rate limit
     if (!this.rateLimiter.canMakeRequest()) {
-      throw new NetworkError('Rate limit exceeded. Please try again later.', 429);
+      throw new NetworkError(
+        'Rate limit exceeded. Please try again later.',
+        HttpClient.HTTP_STATUS_TOO_MANY_REQUESTS
+      );
     }
 
     let lastError: Error | undefined;

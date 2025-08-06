@@ -7,17 +7,23 @@ import fs from 'fs/promises';
 import FormData from 'form-data';
 import { httpClient } from '../utils/httpClient';
 import { Logger } from '../utils/logger';
-import { config } from '../config';
+import { config } from '../config/config';
 import {
-  PatchNote,
-  DiscordWebhookPayload,
-  DiscordEmbed,
+  type DiscordEmbed,
   DiscordError,
-  GeminiSummary,
-} from '../types';
+  type DiscordWebhookPayload,
+  type GeminiSummary,
+  type PatchNote,
+} from '../types/types';
 
 export class DiscordNotifier {
   private readonly webhookUrl: string;
+
+  // HTTP Status codes
+  private static readonly HTTP_STATUS_OK_MIN = 200;
+  private static readonly HTTP_STATUS_OK_MAX = 300;
+  private static readonly HTTP_STATUS_INTERNAL_ERROR = 500;
+  private static readonly HTTP_STATUS_RATE_LIMIT = 429;
 
   constructor() {
     this.webhookUrl = config.discord.webhookUrl;
@@ -46,8 +52,96 @@ export class DiscordNotifier {
         throw error;
       }
 
-      throw new DiscordError(message, error instanceof Error ? 500 : undefined);
+      throw new DiscordError(
+        message,
+        error instanceof Error ? DiscordNotifier.HTTP_STATUS_INTERNAL_ERROR : undefined
+      );
     }
+  }
+
+  /**
+   * Setup local image attachment
+   */
+  private async setupLocalImage(
+    patchNote: PatchNote,
+    localImagePath?: string
+  ): Promise<{ hasLocalImage: boolean; originalImageUrl?: string }> {
+    if (!localImagePath) {
+      return { hasLocalImage: false };
+    }
+
+    try {
+      await fs.access(localImagePath);
+      const originalImageUrl = patchNote.imageUrl;
+      patchNote.imageUrl = `attachment://patch_${patchNote.version}.jpg`;
+      Logger.info(`🖼️ ローカル画像をエンベッドに添付: ${localImagePath}`);
+      return {
+        hasLocalImage: true,
+        ...(originalImageUrl && { originalImageUrl }),
+      };
+    } catch (error: unknown) {
+      Logger.warn(`⚠️ ローカル画像アクセス失敗、オンライン画像を使用: ${String(error)}`);
+      return { hasLocalImage: false };
+    }
+  }
+
+  /**
+   * Send webhook with attachment
+   */
+  private async sendWithAttachment(
+    embed: DiscordEmbed,
+    localImagePath: string,
+    patchVersion: string
+  ): Promise<void> {
+    const formData = new FormData();
+    const payload: DiscordWebhookPayload = {
+      content: '🎮 **新しいパッチノートが公開されました！**',
+      embeds: [embed],
+    };
+
+    formData.append('payload_json', JSON.stringify(payload));
+
+    const imageBuffer = await fs.readFile(localImagePath);
+    const filename = `patch_${patchVersion}.jpg`;
+    formData.append('files[0]', imageBuffer, {
+      filename,
+      contentType: 'image/jpeg',
+    });
+
+    const response = await httpClient.post(this.webhookUrl, formData, {
+      headers: {
+        ...formData.getHeaders(),
+      },
+    });
+
+    if (
+      response.status < DiscordNotifier.HTTP_STATUS_OK_MIN ||
+      response.status >= DiscordNotifier.HTTP_STATUS_OK_MAX
+    ) {
+      throw new DiscordError(`Discord webhook failed: HTTP ${response.status}`, response.status);
+    }
+
+    Logger.info(`📎 エンベッド内にローカル画像を埋め込み送信完了: ${filename}`);
+  }
+
+  /**
+   * Send webhook with JSON payload
+   */
+  private async sendWithJson(payload: DiscordWebhookPayload): Promise<void> {
+    const response = await httpClient.post(this.webhookUrl, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (
+      response.status < DiscordNotifier.HTTP_STATUS_OK_MIN ||
+      response.status >= DiscordNotifier.HTTP_STATUS_OK_MAX
+    ) {
+      throw new DiscordError(`Discord webhook failed: HTTP ${response.status}`, response.status);
+    }
+
+    Logger.info(`📋 エンベッドメッセージを送信完了`);
   }
 
   /**
@@ -58,93 +152,42 @@ export class DiscordNotifier {
     localImagePath?: string,
     summary?: GeminiSummary
   ): Promise<void> {
-    // ローカル画像があれば、一時的にURLとして設定（後でattachment://で参照）
-    let imageUrl = patchNote.imageUrl;
-    let hasLocalImage = false;
-
-    if (localImagePath) {
-      try {
-        await fs.access(localImagePath);
-        imageUrl = `attachment://patch_${patchNote.version}.jpg`;
-        hasLocalImage = true;
-        Logger.info(`🖼️ ローカル画像をエンベッドに添付: ${localImagePath}`);
-      } catch (error: unknown) {
-        Logger.warn(`⚠️ ローカル画像アクセス失敗、オンライン画像を使用: ${String(error)}`);
-      }
-    }
-
-    // 一時的にpatchNoteのimageUrlを更新してエンベッドを作成
-    const originalImageUrl = patchNote.imageUrl;
-    if (hasLocalImage && imageUrl) {
-      patchNote.imageUrl = imageUrl;
-    }
-
-    const embed = this.createPatchEmbed(patchNote, true, summary); // 画像URLと要約を含める
+    const { hasLocalImage, originalImageUrl } = await this.setupLocalImage(
+      patchNote,
+      localImagePath
+    );
+    const embed = this.createPatchEmbed(patchNote, true, summary);
 
     // 元のimageUrlを復元
     if (originalImageUrl !== undefined) {
       patchNote.imageUrl = originalImageUrl;
     }
 
-    const payload: DiscordWebhookPayload = {
-      content: '🎮 **新しいパッチノートが公開されました！**',
-      embeds: [embed],
-    };
-
     if (hasLocalImage && localImagePath) {
-      // 添付ファイル付きで送信
-      const formData = new FormData();
-
-      // JSONペイロードをフォームデータに追加
-      formData.append('payload_json', JSON.stringify(payload));
-
-      // 画像ファイルを添付
-      const imageBuffer = await fs.readFile(localImagePath);
-      const filename = `patch_${patchNote.version}.jpg`;
-      formData.append('files[0]', imageBuffer, {
-        filename,
-        contentType: 'image/jpeg',
-      });
-
-      const response = await httpClient.post(this.webhookUrl, formData, {
-        headers: {
-          ...formData.getHeaders(),
-        },
-      });
-
-      if (response.status < 200 || response.status >= 300) {
-        throw new DiscordError(`Discord webhook failed: HTTP ${response.status}`, response.status);
-      }
-
-      Logger.info(`📎 エンベッド内にローカル画像を埋め込み送信完了: ${filename}`);
+      await this.sendWithAttachment(embed, localImagePath, patchNote.version);
     } else {
-      // 通常のJSON送信（オンライン画像またはデフォルト画像）
-      const response = await httpClient.post(this.webhookUrl, payload, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.status < 200 || response.status >= 300) {
-        throw new DiscordError(
-          `Discord embed message failed: HTTP ${response.status}`,
-          response.status
-        );
-      }
-
-      Logger.info(`📋 エンベッドメッセージを送信完了`);
+      const payload: DiscordWebhookPayload = {
+        content: '🎮 **新しいパッチノートが公開されました！**',
+        embeds: [embed],
+      };
+      await this.sendWithJson(payload);
     }
   }
 
   /**
-   * Create Discord embed for patch note
+   * Constants for Discord embed
    */
-  private createPatchEmbed(
-    patchNote: PatchNote,
-    includeImage = true,
-    summary?: GeminiSummary
-  ): DiscordEmbed {
-    const fields = [
+  private static readonly MAX_FIELD_LENGTH = 1021;
+  private static readonly COLOR_WITH_SUMMARY = 0x00ff99;
+  private static readonly COLOR_WITHOUT_SUMMARY = 0x0099ff;
+
+  /**
+   * Create basic fields for patch embed
+   */
+  private createBasicFields(
+    patchNote: PatchNote
+  ): { name: string; value: string; inline?: boolean }[] {
+    return [
       {
         name: '📋 バージョン',
         value: patchNote.version,
@@ -156,88 +199,121 @@ export class DiscordNotifier {
         inline: true,
       },
     ];
+  }
+
+  /**
+   * Truncate text if it exceeds max length
+   */
+  private truncateText(text: string, maxLength = DiscordNotifier.MAX_FIELD_LENGTH): string {
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+  }
+
+  /**
+   * Add summary field
+   */
+  private addSummaryField(
+    fields: { name: string; value: string; inline?: boolean }[],
+    summary: GeminiSummary
+  ): void {
+    if (summary.summary) {
+      fields.push({
+        name: '📝 AI要約',
+        value: this.truncateText(summary.summary),
+        inline: false,
+      });
+    }
+  }
+
+  /**
+   * Add key changes field
+   */
+  private addKeyChangesField(
+    fields: { name: string; value: string; inline?: boolean }[],
+    keyChanges: string[]
+  ): void {
+    const changes = keyChanges.map((change, index) => `${index + 1}. ${change}`);
+    const changesText = changes.join('\n\n');
+
+    fields.push({
+      name: '🎯 主要な変更点',
+      value: this.truncateText(changesText),
+      inline: false,
+    });
+  }
+
+  /**
+   * Add list field with specified name and emoji
+   */
+  private addListField(
+    fields: { name: string; value: string; inline?: boolean }[],
+    items: string[],
+    name: string,
+    maxItems = 3
+  ): void {
+    const text = items
+      .slice(0, maxItems)
+      .map((item, index) => `${index + 1}. ${item}`)
+      .join('\n\n');
+
+    fields.push({
+      name,
+      value: this.truncateText(text),
+      inline: false,
+    });
+  }
+
+  /**
+   * Add all summary fields
+   */
+  private addAllSummaryFields(
+    fields: { name: string; value: string; inline?: boolean }[],
+    summary: GeminiSummary
+  ): void {
+    this.addSummaryField(fields, summary);
+
+    if (summary.keyChanges.length > 0) {
+      this.addKeyChangesField(fields, summary.keyChanges);
+    }
+
+    if (summary.newFeatures && summary.newFeatures.length > 0) {
+      this.addListField(fields, summary.newFeatures, '✨ 新機能');
+    }
+
+    if (summary.importantBugFixes && summary.importantBugFixes.length > 0) {
+      this.addListField(fields, summary.importantBugFixes, '🔧 重要なバグ修正');
+    }
+
+    if (summary.skinContent && summary.skinContent.length > 0) {
+      this.addListField(fields, summary.skinContent, '🎨 スキン・コンテンツ');
+    }
+
+    // AIモデル情報を追加
+    fields.push({
+      name: '🤖 要約生成',
+      value: `${summary.model} | ${new Date(summary.generatedAt).toLocaleString('ja-JP')}`,
+      inline: true,
+    });
+  }
+
+  /**
+   * Create Discord embed for patch note
+   */
+  private createPatchEmbed(
+    patchNote: PatchNote,
+    includeImage = true,
+    summary?: GeminiSummary
+  ): DiscordEmbed {
+    const fields = this.createBasicFields(patchNote);
 
     // Gemini要約がある場合は追加
     if (summary) {
-      // 要約を追加
-      if (summary.summary) {
-        fields.push({
-          name: '📝 AI要約',
-          value:
-            summary.summary.length > 1024
-              ? `${summary.summary.substring(0, 1021)}...`
-              : summary.summary,
-          inline: false,
-        });
-      }
-
-      // 主要な変更点を追加（3〜5個）
-      if (summary.keyChanges && summary.keyChanges.length > 0) {
-        const changes = summary.keyChanges.map((change, index) => `${index + 1}. ${change}`);
-        const changesText = changes.join('\n\n');
-
-        fields.push({
-          name: '🎯 主要な変更点',
-          value: changesText.length > 1024 ? `${changesText.substring(0, 1021)}...` : changesText,
-          inline: false,
-        });
-      }
-
-      // 新機能を追加（最大3つまで）
-      if (summary.newFeatures && summary.newFeatures.length > 0) {
-        const featuresText = summary.newFeatures
-          .slice(0, 3)
-          .map((feature, index) => `${index + 1}. ${feature}`)
-          .join('\n\n');
-
-        fields.push({
-          name: '✨ 新機能',
-          value:
-            featuresText.length > 1024 ? `${featuresText.substring(0, 1021)}...` : featuresText,
-          inline: false,
-        });
-      }
-
-      // 重要なバグ修正を追加（最大3つまで）
-      if (summary.importantBugFixes && summary.importantBugFixes.length > 0) {
-        const bugFixText = summary.importantBugFixes
-          .slice(0, 3)
-          .map((fix, index) => `${index + 1}. ${fix}`)
-          .join('\n\n');
-
-        fields.push({
-          name: '🔧 重要なバグ修正',
-          value: bugFixText.length > 1024 ? `${bugFixText.substring(0, 1021)}...` : bugFixText,
-          inline: false,
-        });
-      }
-
-      // スキン・コンテンツ情報を追加（最大3つまで）
-      if (summary.skinContent && summary.skinContent.length > 0) {
-        const skinText = summary.skinContent
-          .slice(0, 3)
-          .map((skin, index) => `${index + 1}. ${skin}`)
-          .join('\n\n');
-
-        fields.push({
-          name: '🎨 スキン・コンテンツ',
-          value: skinText.length > 1024 ? `${skinText.substring(0, 1021)}...` : skinText,
-          inline: false,
-        });
-      }
-
-      // AIモデル情報を追加
-      fields.push({
-        name: '🤖 要約生成',
-        value: `${summary.model} | ${new Date(summary.generatedAt).toLocaleString('ja-JP')}`,
-        inline: true,
-      });
+      this.addAllSummaryFields(fields, summary);
     }
 
     const embed: DiscordEmbed = {
       title: patchNote.title,
       url: patchNote.url,
-      color: summary ? 0x00ff99 : 0x0099ff, // 要約がある場合は緑系、ない場合は青系
+      color: summary ? DiscordNotifier.COLOR_WITH_SUMMARY : DiscordNotifier.COLOR_WITHOUT_SUMMARY,
       timestamp: patchNote.publishedAt.toISOString(),
       footer: {
         text: summary
@@ -283,7 +359,10 @@ export class DiscordNotifier {
         },
       });
 
-      if (response.status < 200 || response.status >= 300) {
+      if (
+        response.status < DiscordNotifier.HTTP_STATUS_OK_MIN ||
+        response.status >= DiscordNotifier.HTTP_STATUS_OK_MAX
+      ) {
         throw new DiscordError(
           `Test notification failed: HTTP ${response.status}`,
           response.status
@@ -294,7 +373,10 @@ export class DiscordNotifier {
     } catch (error: unknown) {
       const message = 'Failed to send test Discord notification';
       Logger.error(message, error);
-      throw new DiscordError(message, error instanceof Error ? 500 : undefined);
+      throw new DiscordError(
+        message,
+        error instanceof Error ? DiscordNotifier.HTTP_STATUS_INTERNAL_ERROR : undefined
+      );
     }
   }
 

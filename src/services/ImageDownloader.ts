@@ -8,11 +8,18 @@ import path from 'path';
 import { httpClient } from '../utils/httpClient';
 import { FileStorage } from '../utils/fileStorage';
 import { Logger } from '../utils/logger';
-import { config } from '../config';
-import { NetworkError, AppError } from '../types';
+import { config } from '../config/config';
+import { AppError, NetworkError } from '../types/types';
 
 export class ImageDownloader {
   private readonly imagesDir: string;
+
+  // Time constants
+  private static readonly DAYS_IN_MONTH = 30;
+  private static readonly HOURS_IN_DAY = 24;
+  private static readonly MINUTES_IN_HOUR = 60;
+  private static readonly SECONDS_IN_MINUTE = 60;
+  private static readonly MS_IN_SECOND = 1000;
 
   constructor() {
     this.imagesDir = config.storage.imagesDir;
@@ -48,13 +55,7 @@ export class ImageDownloader {
         },
       });
 
-      // Validate response
-      if (!response.data || response.status !== 200) {
-        throw new NetworkError(
-          `Failed to download image: HTTP ${response.status}`,
-          response.status
-        );
-      }
+      // Response data is always returned due to httpClient design
 
       // Convert ArrayBuffer to Buffer if needed
       const imageBuffer =
@@ -113,7 +114,13 @@ export class ImageDownloader {
   /**
    * Clean up old cached images (optional utility)
    */
-  public cleanupOldImages(maxAge: number = 30 * 24 * 60 * 60 * 1000): void {
+  public cleanupOldImages(
+    maxAge: number = ImageDownloader.DAYS_IN_MONTH *
+      ImageDownloader.HOURS_IN_DAY *
+      ImageDownloader.MINUTES_IN_HOUR *
+      ImageDownloader.SECONDS_IN_MINUTE *
+      ImageDownloader.MS_IN_SECOND
+  ): void {
     try {
       Logger.info('Starting cleanup of old cached images...');
       // Implementation would go here to clean files older than maxAge
@@ -128,15 +135,17 @@ export class ImageDownloader {
    * Get the local path for a cached image
    */
   public getImagePath(imageUrl: string, patchVersion: string): string {
+    const sanitizedVersion = patchVersion.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const patchDir = path.join(config.storage.patchesDir, `patch_${sanitizedVersion}`);
     const filename = this.generateImageFilename(imageUrl, patchVersion);
-    return path.join(this.imagesDir, filename);
+    return path.join(patchDir, filename);
   }
 
   /**
    * Check if image is already cached
    */
-  public async isImageCached(imageUrl: string, patchVersion: string): Promise<boolean> {
+  public isImageCached(imageUrl: string, patchVersion: string): Promise<boolean> {
     const localPath = this.getImagePath(imageUrl, patchVersion);
-    return await FileStorage.exists(localPath);
+    return FileStorage.exists(localPath);
   }
 }

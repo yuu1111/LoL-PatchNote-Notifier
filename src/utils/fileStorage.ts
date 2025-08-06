@@ -6,7 +6,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Logger } from './logger';
-import { AppError } from '../types';
+import { AppError } from '../types/types';
 
 /**
  * File Storage class for JSON data persistence

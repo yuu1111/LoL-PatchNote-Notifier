@@ -4,8 +4,8 @@
  */
 
 import { Logger } from '../utils/logger';
-import { config } from '../config';
-import { AppError } from '../types';
+import { config } from '../config/config';
+import { AppError } from '../types/types';
 
 export class Scheduler {
   private intervalId: NodeJS.Timeout | null = null;
@@ -13,6 +13,12 @@ export class Scheduler {
   private lastExecutionTime: Date | null = null;
   private totalExecutions = 0;
   private readonly intervalMinutes: number;
+
+  // Time constants
+  private static readonly MINUTES_IN_HOUR = 60;
+  private static readonly MS_IN_SECOND = 1000;
+  private static readonly SECONDS_IN_MINUTE = 60;
+  private static readonly MINUTES_IN_DAY = 1440;
 
   constructor() {
     this.intervalMinutes = config.monitoring.checkIntervalMinutes;
@@ -29,7 +35,8 @@ export class Scheduler {
       }
 
       // 間隔をミリ秒に変換
-      const intervalMs = this.intervalMinutes * 60 * 1000;
+      const intervalMs =
+        this.intervalMinutes * Scheduler.SECONDS_IN_MINUTE * Scheduler.MS_IN_SECOND;
 
       Logger.info(`⏰ スケジューラーを開始: ${this.intervalMinutes}分間隔 (${intervalMs}ms)`);
 
@@ -122,7 +129,8 @@ export class Scheduler {
     let nextExecutionTime = null;
     if (this.isRunning && this.lastExecutionTime) {
       nextExecutionTime = new Date(
-        this.lastExecutionTime.getTime() + this.intervalMinutes * 60 * 1000
+        this.lastExecutionTime.getTime() +
+          this.intervalMinutes * Scheduler.SECONDS_IN_MINUTE * Scheduler.MS_IN_SECOND
       );
     }
 
@@ -152,24 +160,23 @@ export class Scheduler {
    * インターバル設定の妥当性を検証
    */
   public static validateInterval(minutes: number): boolean {
-    return Number.isInteger(minutes) && minutes > 0 && minutes <= 1440; // 1日以内
+    return Number.isInteger(minutes) && minutes > 0 && minutes <= Scheduler.MINUTES_IN_DAY; // 1日以内
   }
 
   /**
    * インターバル設定の説明を取得
    */
   public static describeInterval(minutes: number): string {
-    if (minutes < 60) {
+    if (minutes < Scheduler.MINUTES_IN_HOUR) {
       return `${minutes}分間隔で実行`;
-    } else if (minutes === 60) {
+    } else if (minutes === Scheduler.MINUTES_IN_HOUR) {
       return '1時間間隔で実行';
-    } else if (minutes % 60 === 0) {
-      const hours = minutes / 60;
+    } else if (minutes % Scheduler.MINUTES_IN_HOUR === 0) {
+      const hours = minutes / Scheduler.MINUTES_IN_HOUR;
       return `${hours}時間間隔で実行`;
-    } else {
-      const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      return `${hours}時間${remainingMinutes}分間隔で実行`;
     }
+    const hours = Math.floor(minutes / Scheduler.MINUTES_IN_HOUR);
+    const remainingMinutes = minutes % Scheduler.MINUTES_IN_HOUR;
+    return `${hours}時間${remainingMinutes}分間隔で実行`;
   }
 }

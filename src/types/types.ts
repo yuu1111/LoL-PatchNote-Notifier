@@ -31,11 +31,11 @@ export interface DiscordEmbed {
   footer?: {
     text: string;
   };
-  fields?: Array<{
+  fields?: {
     name: string;
     value: string;
     inline?: boolean;
-  }>;
+  }[];
 }
 
 export interface DiscordWebhookPayload {
