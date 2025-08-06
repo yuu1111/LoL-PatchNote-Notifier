@@ -25,3 +25,16 @@ if (process.env.SUPPRESS_TEST_LOGS === 'true') {
 
 // グローバルモックの設定
 jest.setTimeout(30000); // タイムアウトを30秒に設定
+
+// Node.js環境でのfetch関連の問題を回避
+if (typeof globalThis.fetch === 'undefined') {
+  // fetch APIが存在しない場合は何もしない（axiosを使用しているため）
+  // これによりundiciモジュールの初期化エラーを回避
+}
+
+// TextEncoderとTextDecoderのポリフィル（必要に応じて）
+if (typeof globalThis.TextEncoder === 'undefined') {
+  const { TextEncoder, TextDecoder } = require('util');
+  globalThis.TextEncoder = TextEncoder;
+  globalThis.TextDecoder = TextDecoder;
+}

@@ -3,6 +3,10 @@ export default {
   preset: 'ts-jest/presets/default-esm',
   extensionsToTreatAsEsm: ['.ts'],
   testEnvironment: 'node',
+  testEnvironmentOptions: {
+    // Node.js環境のオプション
+    customExportConditions: ['node', 'node-addons'],
+  },
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: [
     '**/__tests__/**/*.+(ts|tsx|js)',
@@ -34,6 +38,8 @@ export default {
   // Module path mapping (if needed)
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    // undiciの問題を回避するためのマッピング
+    '^undici$': '<rootDir>/tests/__mocks__/undici.js',
   },
   // Test timeout
   testTimeout: 10000,
