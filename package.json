@@ -36,8 +36,7 @@
     "version:check": "node -p \"require('./package.json').version\"",
     "test:run": "jest --passWithNoTests",
     "quality:check": "npm run lint && npm run format:check && npm run build && npm run test:run",
-    "quality:fix": "npm run lint:fix && npm run format && npm run build && npm run test:run",
-    "prepare": "husky"
+    "quality:fix": "npm run lint:fix && npm run format && npm run build && npm run test:run"
   },
   "keywords": [
     "league-of-legends",
@@ -70,14 +69,12 @@
     "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^8.17.0",
     "@typescript-eslint/parser": "^8.17.0",
-    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.15.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
     "globals": "^15.13.0",
-    "husky": "^9.1.7",
     "jest": "^29.7.0",
-    "lint-staged": "^15.2.11",
     "nodemon": "^3.1.0",
     "prettier": "^3.4.1",
     "rimraf": "^5.0.10",
@@ -86,12 +83,6 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.17.0",
-    "vitest": "^2.1.8"
-  },
-  "lint-staged": {
-    "*.ts": [
-      "eslint --fix",
-      "prettier --write"
-    ]
+    "vitest": "^3.2.4"
   }
 }
