@@ -5,6 +5,27 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいており、
 このプロジェクトは [セマンティック バージョニング](https://semver.org/lang/ja/) に準拠しています。
 
+## [1.0.2] - 2025-08-01
+
+### 修正
+- 🔧 **ESLintコンプライアンス** - 81個のESLint警告をすべて修正し、設定を強化
+- 🛡️ **型安全性** - 厳密なエラーチェックでTypeScriptの型安全性を強化
+- 🏗️ **CI/CD互換性** - GitHub ActionsのTypeScriptコンパイルエラーを解決
+- 🔍 **コード品質** - 適切な型ガードと安全な型変換を実装
+- 📝 **Prettierフォーマット** - すべてのファイルで一貫したコードフォーマットを確保
+
+### 変更
+- ⚠️ **ESLint設定** - より厳格な検証のためすべての警告ルールをエラールールに変更
+- 🎯 **型処理** - 安全なアサーションでCheerio要素型の処理を改善
+- 🔄 **状態管理** - 明示的な型変換でStateManagerを強化
+- 📊 **テンプレートリテラル** - 文字列補間に型安全性を追加
+
+### 技術的改善
+- **Gemini API型** - 適切なGenerativeModelとGeminiResult型定義を追加
+- **Nullish Coalescing** - 適切な場所で論理ORをNullish Coalescing演算子に置き換え
+- **エラー処理** - エラー型アノテーションと安全な文字列変換を強化
+- **設定** - 設定関数に明示的な戻り値型アノテーションを追加
+
 ## [1.0.1] - 2025-08-01
 
 ### 追加
@@ -53,5 +74,6 @@
 - 環境変数バリデーション
 - セーフ設定処理
 
+[1.0.2]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.2
 [1.0.1]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.1
 [1.0.0]: https://github.com/yuu1111/LoL-PatchNote-Notifier/releases/tag/v1.0.0
